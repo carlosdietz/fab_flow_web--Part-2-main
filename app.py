@@ -3,7 +3,6 @@ import random
 import plotly.graph_objects as go
 import pandas as pd
 
-## Hello 
 
 st.set_page_config(page_title="Dice Game - Semiconductor Manufacturing Chain", layout="wide")
 
