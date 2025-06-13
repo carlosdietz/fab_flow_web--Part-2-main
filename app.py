@@ -21,6 +21,7 @@ class Station:
         self.capacity = 0
         self.throughput = 0
         self.fifo = fifo if fifo is not None else []
+        self.output = 0  # <-- Add this line
 
 def initialize_stations(start_wip):
     stations = []
@@ -91,6 +92,10 @@ def get_tracked_avg_cycle_time(tracked_units):
     return 0
 
 # --- Streamlit UI ---
+
+# --- At the top, ensure session state flags are set ---
+if "show_round_0" not in st.session_state:
+    st.session_state.show_round_0 = False
 
 if 'page' not in st.session_state:
     st.session_state.page = 'welcome'
@@ -184,11 +189,52 @@ elif st.session_state.page == 'quiz':
             st.markdown(f"Your answer: {quiz_answers[i]}")
             st.markdown(f"Correct: {correct_answers[i]}")
         if st.button("Start Game"):
-            reset_game_state()
+            st.session_state.stations = initialize_stations(START_WIP)
+            st.session_state.round_num = 0
+            st.session_state.show_round_0 = True
             st.session_state.page = 'initial'
             st.rerun()
+
+
 # --- Game Board Page ---
+ 
+ 
 elif st.session_state.page in ['initial', 'round']:
+    if st.session_state.show_round_0:
+        # --- Show only Round 0 ---
+        st.markdown(f"### Round 0")  # Removed clock emoji
+        floor_cols = st.columns(NUM_STEPS)
+        for i, s in enumerate(st.session_state.stations):
+            with floor_cols[i]:
+                try:
+                    st.image("images/machine.png", width=100)
+                except Exception:
+                    st.warning("Missing image: images/machine.png")
+                st.markdown(f"**Step {i+1}**")
+                st.image("images/dice1.png", width=30)  # Always show dice 1 for Round 0
+                wip_count = s.wip if s.wip != RAW_MATERIAL else 999
+                st.markdown(f"WIP: {wip_count if wip_count != 999 else '∞'}")
+                if i != 0 and wip_count != 999:
+                    wafer_imgs = []
+                    for _ in range(min(wip_count, 10)):
+                        wafer_imgs.append("images/wafer.png")
+                    if wafer_imgs:
+                        st.image(wafer_imgs, width=20)
+                    st.caption("Wafers")
+                elif i != 0:
+                    st.caption("Wafers")
+        st.markdown("---")
+        st.markdown("### KPI Panel")
+        st.metric("Round Output", 0)
+        st.metric("Total Output", 0)
+        total_wip = sum(s.wip for s in st.session_state.stations[1:])
+        st.metric("Total WIP", total_wip)
+        if st.button("Next Round", key="next_round0_btn"):
+            st.session_state.show_round_0 = False
+            st.session_state.round_num = 1
+            st.session_state.page = 'round'
+            st.rerun()
+        st.stop()
     if st.session_state.page == 'initial':
         reset_game_state()
         st.session_state.round_num = 1
@@ -217,6 +263,9 @@ elif st.session_state.page in ['initial', 'round']:
             st.session_state.finished_cycles,
             st.session_state.tracked_units
         )
+        # After process_round, set output for each station
+        for i, s in enumerate(st.session_state.stations):
+            s.output = throughputs[i]
         round_output = len(round_finished_units)
         st.session_state.round_outputs.append(round_output)
         st.session_state.dice_history.append(dice)
@@ -388,6 +437,9 @@ elif st.session_state.page == 'second_game':
     st.session_state.page = 'second_game_round'
     st.rerun()
 
+
+
+
 elif st.session_state.page == 'second_game_round':
     st.markdown(f"## Second Game - Round {st.session_state.round_num}")
 
@@ -411,6 +463,9 @@ elif st.session_state.page == 'second_game_round':
             st.session_state.finished_cycles,
             st.session_state.tracked_units
         )
+        # After process_round, set output for each station
+        for i, s in enumerate(st.session_state.stations):
+            s.output = throughputs[i]
         round_output = len(round_finished_units)
         st.session_state.round_outputs.append(round_output)
         st.session_state.dice_history.append(dice)
