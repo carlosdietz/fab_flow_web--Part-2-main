@@ -40,6 +40,10 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
     new_incoming = [[] for _ in range(NUM_STEPS)]
     round_finished_units = []
 
+    # Track start WIP for each station for this round
+    start_wip_per_step = [s.wip if s.wip != RAW_MATERIAL else 999 for s in stations]
+
+    # Step 0 (Raw material)
     stations[0].capacity = dice[0]
     stations[0].throughput = dice[0]
     throughputs.append(stations[0].throughput)
@@ -56,9 +60,10 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
     for i in range(1, NUM_STEPS):
         if i != 1 and prev_incoming[i]:
             stations[i].fifo.extend(prev_incoming[i])
+        # Available to process WIP is current FIFO length
+        available_wip = len(stations[i].fifo)
         stations[i].capacity = dice[i]
-        stations[i].wip = len(stations[i].fifo)
-        stations[i].throughput = min(stations[i].wip, stations[i].capacity)
+        stations[i].throughput = min(available_wip, stations[i].capacity)
         throughputs.append(stations[i].throughput)
         moved = [stations[i].fifo.pop(0) for _ in range(stations[i].throughput)]
         if i < NUM_STEPS - 1:
@@ -71,6 +76,12 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
                     tracked_units[unit_id]['exit'] = round_num + 1
                 if unit_id.startswith("U1-") and entry_round > 0:
                     finished_cycles.append((round_num + 1) - entry_round)
+    # --- Update WIP for each station after all throughputs are calculated ---
+    for i in range(NUM_STEPS):
+        if i == 0:
+            stations[i].wip = max(0, start_wip_per_step[i] - throughputs[i])
+        else:
+            stations[i].wip = max(0, start_wip_per_step[i] - throughputs[i] + throughputs[i-1])
 
     end_wip_per_step = [s.wip if s.wip != RAW_MATERIAL else '∞' for s in stations]
     total_end_wip = sum(s.wip for s in stations[1:])
@@ -82,7 +93,8 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
         finished_cycles,
         end_wip_per_step,
         total_end_wip,
-        round_finished_units
+        round_finished_units,
+        start_wip_per_step  # Add start_wip_per_step to return for UI
     )
 
 def get_tracked_avg_cycle_time(tracked_units):
@@ -120,6 +132,9 @@ if 'page' not in st.session_state:
     st.session_state.third_quiz = ["", "", ""]
     st.session_state.third_quiz_submitted = False
     st.session_state.dice_range_override = None
+
+if 'start_wip_history' not in st.session_state:
+    st.session_state.start_wip_history = []
 
 def reset_game_state():
     st.session_state.stations = initialize_stations(START_WIP)
@@ -197,26 +212,25 @@ elif st.session_state.page == 'quiz':
 
 
 # --- Game Board Page ---
- 
- 
 elif st.session_state.page in ['initial', 'round']:
     if st.session_state.show_round_0:
-        # --- Show only Round 0 ---
-        st.markdown(f"### Round 0")  # Removed clock emoji
+        st.markdown(f"### Round 0")
+        round0_wip = [999] + [4]*(NUM_STEPS-1)
         floor_cols = st.columns(NUM_STEPS)
-        for i, s in enumerate(st.session_state.stations):
+        for i in range(NUM_STEPS):
             with floor_cols[i]:
                 try:
                     st.image("images/machine.png", width=100)
                 except Exception:
                     st.warning("Missing image: images/machine.png")
                 st.markdown(f"**Step {i+1}**")
-                st.image("images/dice1.png", width=30)  # Always show dice 1 for Round 0
-                wip_count = s.wip if s.wip != RAW_MATERIAL else 999
-                st.markdown(f"WIP: {wip_count if wip_count != 999 else '∞'}")
-                if i != 0 and wip_count != 999:
+                st.image("images/dice1.png", width=30)
+                # Initial WIP (no differentiation in Round 0)
+                st.image("images/wafer_available.png", width=30)
+                st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+                if i != 0 and round0_wip[i] != 999:
                     wafer_imgs = []
-                    for _ in range(min(wip_count, 10)):
+                    for _ in range(min(round0_wip[i], 10)):
                         wafer_imgs.append("images/wafer.png")
                     if wafer_imgs:
                         st.image(wafer_imgs, width=20)
@@ -227,7 +241,7 @@ elif st.session_state.page in ['initial', 'round']:
         st.markdown("### KPI Panel")
         st.metric("Round Output", 0)
         st.metric("Total Output", 0)
-        total_wip = sum(s.wip for s in st.session_state.stations[1:])
+        total_wip = sum(round0_wip[1:])
         st.metric("Total WIP", total_wip)
         if st.button("Next Round", key="next_round0_btn"):
             st.session_state.show_round_0 = False
@@ -241,7 +255,8 @@ elif st.session_state.page in ['initial', 'round']:
 
     st.markdown(f"## Round {st.session_state.round_num}")
 
-    # (Removed dice GIFs here)
+    # Store Start WIP before processing
+    # start_wip = [s.wip for s in st.session_state.stations]  # Remove this, now handled in process_round
 
     # Only process round if not already processed for this round
     if len(st.session_state.dice_history) < st.session_state.round_num:
@@ -253,11 +268,12 @@ elif st.session_state.page in ['initial', 'round']:
             st.session_state.finished_cycles,
             end_wip_per_step,
             total_end_wip,
-            round_finished_units
+            round_finished_units,
+            start_wip_per_step
         ) = process_round(
             st.session_state.stations,
             st.session_state.prev_incoming,
-            st.session_state.dice_range_override if st.session_state.dice_range_override else DICE_RANGE,
+            st.session_state.dice_range_override,
             st.session_state.round_num,
             st.session_state.finished_units,
             st.session_state.finished_cycles,
@@ -273,24 +289,35 @@ elif st.session_state.page in ['initial', 'round']:
         st.session_state.end_wip_history.append(end_wip_per_step)
         st.session_state.total_end_wip_history.append(total_end_wip)
         st.session_state.round_finished_units_history.append(round_finished_units)
+        if 'start_wip_history' not in st.session_state:
+            st.session_state.start_wip_history = []
+        st.session_state.start_wip_history.append(start_wip_per_step)
     else:
         dice = st.session_state.dice_history[st.session_state.round_num-1]
         throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
         end_wip_per_step = st.session_state.end_wip_history[st.session_state.round_num-1]
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
+        if 'start_wip_history' in st.session_state and len(st.session_state.start_wip_history) >= st.session_state.round_num:
+            start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
+        else:
+            start_wip_per_step = [4]*NUM_STEPS
 
-    # Always define dice, throughputs, end_wip_per_step, total_end_wip for the UI below
+    # Always define dice, throughputs, end_wip_per_step, total_end_wip, start_wip_per_step for the UI below
     if len(st.session_state.dice_history) >= st.session_state.round_num:
         dice = st.session_state.dice_history[st.session_state.round_num-1]
         throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
         end_wip_per_step = st.session_state.end_wip_history[st.session_state.round_num-1]
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
+        if len(st.session_state.start_wip_history) >= st.session_state.round_num:
+            start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
+        else:
+            start_wip_per_step = [4]*NUM_STEPS
     else:
-        # fallback to empty/defaults if not available
         dice = [1]*NUM_STEPS
         throughputs = [0]*NUM_STEPS
         end_wip_per_step = [0]*NUM_STEPS
         total_end_wip = 0
+        start_wip_per_step = [4]*NUM_STEPS
 
     # Show stations as machines with wafers
     st.markdown("### Manufacturing Chain")
@@ -306,18 +333,20 @@ elif st.session_state.page in ['initial', 'round']:
                 st.image(f"images/dice{dice[i]}.png", width=30)
             except Exception:
                 st.warning(f"Missing image: images/dice{dice[i]}.png")
-            wip_count = s.wip if s.wip != RAW_MATERIAL else 999
-            st.markdown(f"WIP: {wip_count if wip_count != 999 else '∞'}")
-            # Only show wafer images if not Step 1 (i != 0) and WIP is not infinite
-            if i != 0 and wip_count != 999:
-                wafer_imgs = []
-                for _ in range(min(wip_count, 10)):
-                    wafer_imgs.append("images/wafer.png")
-                if wafer_imgs:
-                    st.image(wafer_imgs, width=20)
-                st.caption("Wafers")
-            elif i != 0:
-                st.caption("Wafers")
+            # Begin WIP (Available to process)
+            st.image("images/wafer_available.png", width=30)
+            if i == 0:
+                st.markdown(f"Available to process WIP: ∞")
+            else:
+                st.markdown(f"Available to process WIP: {start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'}")
+            # End WIP (after processing) - REMOVE for Step 1 (i==0)
+            if i != 0:
+                st.image("images/wafer_arrived.png", width=30)
+                if i == 0:
+                    st.markdown(f"End WIP after processing: ∞")
+                else:
+                    end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
+                    st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
 
     # KPI Panel
     st.markdown("---")
@@ -410,7 +439,8 @@ elif st.session_state.page == 'second_game':
                 finished_cycles,
                 end_wip_per_step,
                 total_end_wip,
-                round_finished_units
+                round_finished_units,
+                _  # start_wip_per_step (unused in simulation)
             ) = process_round(
                 stations,
                 prev_incoming,
@@ -441,9 +471,57 @@ elif st.session_state.page == 'second_game':
 
 
 elif st.session_state.page == 'second_game_round':
-    st.markdown(f"## Second Game - Round {st.session_state.round_num}")
+    # Show Round 0 for second game
+    if st.session_state.round_num == 1 and (not st.session_state.dice_history or len(st.session_state.dice_history) == 0):
+        st.markdown(f"### Round 0 (Second Game)")
+        # Use the correct start_wip for the selected option
+        top_choice = st.session_state.second_game_user_choice
+        settings = {
+            "A": {"dice_range": (1, 7), "start_wip": 4},
+            "B": {"dice_range": (2, 5), "start_wip": 4},
+            "C": {"dice_range": (1, 6), "start_wip": 5},
+        }
+        round0_wip = [999] + [settings[top_choice]["start_wip"]]*(NUM_STEPS-1)
+        floor_cols = st.columns(NUM_STEPS)
+        for i in range(NUM_STEPS):
+            with floor_cols[i]:
+                try:
+                    st.image("images/machine.png", width=60)
+                except Exception:
+                    st.warning("Missing image: images/machine.png")
+                st.markdown(f"**Step {i+1}**")
+                st.image("images/dice1.png", width=30)
+                st.image("images/wafer_available.png", width=30)
+                st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+        st.markdown("---")
+        st.markdown("### KPI Panel")
+        st.metric("Round Output", 0)
+        st.metric("Total Output", 0)
+        total_wip = sum(round0_wip[1:])
+        st.metric("Total WIP", total_wip)
+        if st.button("Next Round", key="second_next_round0_btn"):
+            # Set dice_range_override and re-init state for the selected option
+            top_choice = st.session_state.second_game_user_choice
+            settings = {
+                "A": {"dice_range": (1, 7), "start_wip": 4},
+                "B": {"dice_range": (2, 5), "start_wip": 4},
+                "C": {"dice_range": (1, 6), "start_wip": 5},
+            }
+            st.session_state.dice_range_override = settings[top_choice]["dice_range"]
+            st.session_state.round_num = 1
+            st.session_state.dice_history = []
+            st.session_state.throughputs_history = []
+            st.session_state.end_wip_history = []
+            st.session_state.total_end_wip_history = []
+            st.session_state.round_outputs = []
+            st.session_state.round_finished_units_history = []
+            st.session_state.start_wip_history = []
+            st.rerun()
+        st.stop()
 
     # Only process round if not already processed for this round
+    # Always ensure dice_range is set and never None, using override if present
+    dice_range = st.session_state.dice_range_override if st.session_state.dice_range_override is not None else DICE_RANGE
     if len(st.session_state.dice_history) < st.session_state.round_num:
         (
             st.session_state.prev_incoming,
@@ -453,11 +531,12 @@ elif st.session_state.page == 'second_game_round':
             st.session_state.finished_cycles,
             end_wip_per_step,
             total_end_wip,
-            round_finished_units
+            round_finished_units,
+            start_wip_per_step
         ) = process_round(
             st.session_state.stations,
             st.session_state.prev_incoming,
-            st.session_state.dice_range_override,
+            dice_range,
             st.session_state.round_num,
             st.session_state.finished_units,
             st.session_state.finished_cycles,
@@ -473,11 +552,18 @@ elif st.session_state.page == 'second_game_round':
         st.session_state.end_wip_history.append(end_wip_per_step)
         st.session_state.total_end_wip_history.append(total_end_wip)
         st.session_state.round_finished_units_history.append(round_finished_units)
+        if 'start_wip_history' not in st.session_state:
+            st.session_state.start_wip_history = []
+        st.session_state.start_wip_history.append(start_wip_per_step)
     else:
         dice = st.session_state.dice_history[st.session_state.round_num-1]
         throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
         end_wip_per_step = st.session_state.end_wip_history[st.session_state.round_num-1]
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
+        if 'start_wip_history' in st.session_state and len(st.session_state.start_wip_history) >= st.session_state.round_num:
+            start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
+        else:
+            start_wip_per_step = [4]*NUM_STEPS
 
     # Show stations as machines with wafers
     st.markdown("### Manufacturing Chain")
@@ -493,17 +579,14 @@ elif st.session_state.page == 'second_game_round':
                 st.image(f"images/dice{dice[i]}.png", width=30)
             except Exception:
                 st.warning(f"Missing image: images/dice{dice[i]}.png")
-            wip_count = s.wip if s.wip != RAW_MATERIAL else 999
-            st.markdown(f"WIP: {wip_count if wip_count != 999 else '∞'}")
-            wafer_imgs = []
-            for _ in range(min(wip_count if wip_count != 999 else 10, 10)):
-                try:
-                    wafer_imgs.append("images/wafer.png")
-                except Exception:
-                    pass
-            if wafer_imgs:
-                st.image(wafer_imgs, width=20)
-            st.caption("Wafers")
+            # Begin WIP (Available to process)
+            st.image("images/wafer_available.png", width=30)
+            st.markdown(f"Available to process WIP: {start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'}")
+            # End WIP (after processing) - hide for Step 1
+            if i != 0:
+                st.image("images/wafer_arrived.png", width=30)
+                end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
+                st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
     st.markdown("---")
     st.markdown("### KPI Panel")
     total_output = sum(st.session_state.round_outputs)
@@ -619,3 +702,4 @@ elif st.session_state.page == 'thank_you':
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
     st.markdown("You may now close this window.")
+
