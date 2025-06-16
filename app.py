@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import random
 import plotly.graph_objects as go
 import pandas as pd
