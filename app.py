@@ -214,7 +214,8 @@ elif st.session_state.page == 'quiz':
 # --- Game Board Page ---
 elif st.session_state.page in ['initial', 'round']:
     if st.session_state.show_round_0:
-        st.markdown(f"### Round 0")
+        st.markdown(f"## Round 0")
+        st.markdown("### Manufacturing Chain")
         round0_wip = [999] + [4]*(NUM_STEPS-1)
         floor_cols = st.columns(NUM_STEPS)
         for i in range(NUM_STEPS):
@@ -225,9 +226,16 @@ elif st.session_state.page in ['initial', 'round']:
                     st.warning("Missing image: images/machine.png")
                 st.markdown(f"**Step {i+1}**")
                 st.image("images/dice1.png", width=30)
-                # Initial WIP (no differentiation in Round 0)
-                st.image("images/wafer_available.png", width=30)
+                
+                # Initial WIP with small images
                 st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+                if i != 0 and round0_wip[i] != 999:
+                    if round0_wip[i] > 17:
+                        wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_imgs = ["images/wafer_available.png"] * round0_wip[i]
+                    st.image(wafer_imgs, width=18)
+        
         st.markdown("---")
         st.markdown("### KPI Panel")
         st.metric("Round Output", 0)
@@ -328,21 +336,29 @@ elif st.session_state.page in ['initial', 'round']:
             try:
                 st.image(f"images/dice{dice[i]}.png", width=30)
             except Exception:
-                st.warning(f"Missing image: images/dice{dice[i]}.png")
-            # Begin WIP (Available to process)
-            st.image("images/wafer_available.png", width=30)
+                st.warning(f"Missing image: images/dice{dice[i]}.png")            # Available to process WIP (small wafer images in a line)
             if i == 0:
                 st.markdown(f"Available to process WIP: ∞")
             else:
-                st.markdown(f"Available to process WIP: {start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'}")
-            # End WIP (after processing) - REMOVE for Step 1 (i==0)
+                available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
+                st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
+                if isinstance(available_wip, int) and available_wip > 0:
+                    if available_wip > 17:
+                        wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_imgs = ["images/wafer_available.png"] * available_wip
+                    st.image(wafer_imgs, width=18)
+            
+            # End WIP after processing (small wafer_arrived images in a line)
             if i != 0:
-                st.image("images/wafer_arrived.png", width=30)
-                if i == 0:
-                    st.markdown(f"End WIP after processing: ∞")
-                else:
-                    end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-                    st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
+                end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
+                st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
+                if isinstance(end_wip_val, int) and end_wip_val > 0:
+                    if end_wip_val > 17:
+                        wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
+                    st.image(wafer_arrived_imgs, width=18)
 
     # KPI Panel
     st.markdown("---")
@@ -470,6 +486,7 @@ elif st.session_state.page == 'second_game_round':    # Show Round 0 for second 
     if st.session_state.round_num == 1 and not getattr(st.session_state, "second_game_round0_done", False):
         st.markdown("## Round 0")
         st.markdown("### Manufacturing Chain")
+        
         # Use the correct start_wip for the selected option
         top_choice = st.session_state.second_game_user_choice
         settings = {
@@ -477,24 +494,36 @@ elif st.session_state.page == 'second_game_round':    # Show Round 0 for second 
             "B": {"dice_range": (2, 5), "start_wip": 4},
             "C": {"dice_range": (1, 6), "start_wip": 5},
         }
+        
         round0_wip = [999] + [settings[top_choice]["start_wip"]]*(NUM_STEPS-1)
         floor_cols = st.columns(NUM_STEPS)
+        
         for i in range(NUM_STEPS):
             with floor_cols[i]:
                 try:
                     st.image("images/machine.png", width=60)
                 except Exception:
                     st.warning("Missing image: images/machine.png")
+                
                 st.markdown(f"**Step {i+1}**")
                 st.image("images/dice1.png", width=30)
-                st.image("images/wafer_available.png", width=30)
+                
+                # Initial WIP with small images
                 st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+                if i != 0 and round0_wip[i] != 999:
+                    if round0_wip[i] > 17:
+                        wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_imgs = ["images/wafer_available.png"] * round0_wip[i]
+                    st.image(wafer_imgs, width=18)
+        
         st.markdown("---")
         st.markdown("### KPI Panel")
         st.metric("Round Output", 0)
         st.metric("Total Output", 0)
         total_wip = sum(round0_wip[1:])
         st.metric("Total WIP", total_wip)
+        
         if st.button("Next Round", key="second_game_next_round0_btn"):
             # Important: When going from Round 0 to Round 1 in second game
             # 1. Set round_num to 1
@@ -563,18 +592,29 @@ elif st.session_state.page == 'second_game_round':    # Show Round 0 for second 
             try:
                 st.image(f"images/dice{dice[i]}.png", width=30)
             except Exception:
-                st.warning(f"Missing image: images/dice{dice[i]}.png")
-            # Begin WIP (Available to process)
-            st.image("images/wafer_available.png", width=30)
+                st.warning(f"Missing image: images/dice{dice[i]}.png")            # Available to process WIP (small wafer images in a line)
             if i == 0:
                 st.markdown(f"Available to process WIP: ∞")
             else:
-                st.markdown(f"Available to process WIP: {start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'}")
-            # End WIP (after processing) - hide for Step 1
+                available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
+                st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
+                if isinstance(available_wip, int) and available_wip > 0:
+                    if available_wip > 17:
+                        wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_imgs = ["images/wafer_available.png"] * available_wip
+                    st.image(wafer_imgs, width=18)
+            
+            # End WIP after processing (small wafer_arrived images in a line)
             if i != 0:
-                st.image("images/wafer_arrived.png", width=30)
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
                 st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
+                if isinstance(end_wip_val, int) and end_wip_val > 0:
+                    if end_wip_val > 17:
+                        wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
+                    else:
+                        wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
+                    st.image(wafer_arrived_imgs, width=18)
     st.markdown("---")
     st.markdown("### KPI Panel")
     total_output = sum(st.session_state.round_outputs)
