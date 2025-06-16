@@ -103,6 +103,58 @@ def get_tracked_avg_cycle_time(tracked_units):
         return sum(cycle_times) / len(cycle_times)
     return 0
 
+def simulate_multiple_rounds(num_rounds):
+    """
+    Simulate multiple rounds at once while maintaining all game logic.
+    Returns the new round number (capped at NUM_ROUNDS).
+    """
+    dice_range = st.session_state.dice_range_override if st.session_state.dice_range_override is not None else DICE_RANGE
+    target_round = min(st.session_state.round_num + num_rounds, NUM_ROUNDS)
+    
+    # Process each round
+    while st.session_state.round_num < target_round:
+        # Process one round
+        (
+            st.session_state.prev_incoming,
+            throughputs,
+            dice,
+            st.session_state.finished_units,
+            st.session_state.finished_cycles,
+            end_wip_per_step,
+            total_end_wip,
+            round_finished_units,
+            start_wip_per_step
+        ) = process_round(
+            st.session_state.stations,
+            st.session_state.prev_incoming,
+            dice_range,
+            st.session_state.round_num,
+            st.session_state.finished_units,
+            st.session_state.finished_cycles,
+            st.session_state.tracked_units
+        )
+        
+        # Update the station outputs
+        for i, s in enumerate(st.session_state.stations):
+            s.output = throughputs[i]
+            
+        # Record the round results
+        round_output = len(round_finished_units)
+        st.session_state.round_outputs.append(round_output)
+        st.session_state.dice_history.append(dice)
+        st.session_state.throughputs_history.append(throughputs)
+        st.session_state.end_wip_history.append(end_wip_per_step)
+        st.session_state.total_end_wip_history.append(total_end_wip)
+        st.session_state.round_finished_units_history.append(round_finished_units)
+        if 'start_wip_history' not in st.session_state:
+            st.session_state.start_wip_history = []
+        st.session_state.start_wip_history.append(start_wip_per_step)
+        
+        # Advance round counter
+        st.session_state.round_num += 1
+    
+    return st.session_state.round_num
+
 # --- Streamlit UI ---
 
 # --- At the top, ensure session state flags are set ---
@@ -368,14 +420,22 @@ elif st.session_state.page in ['initial', 'round']:
     total_wip = sum(e for e in end_wip_per_step[1:10] if isinstance(e, int))
     st.metric("Round Output", round_output)
     st.metric("Total Output", total_output)
-    st.metric("Total WIP", total_wip)
-
-    # Next round or end
+    st.metric("Total WIP", total_wip)    # Next round or end
     if st.session_state.round_num < NUM_ROUNDS:
-        if st.button("Next Round"):
-            st.session_state.round_num += 1
-            st.session_state.page = 'round'
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Next Round"):
+                st.session_state.round_num += 1
+                st.session_state.page = 'round'
+                st.rerun()
+        with col2:
+            rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
+            if rounds_to_skip > 0:
+                if st.button(f"Skip {rounds_to_skip} Rounds"):
+                    # Simulate multiple rounds using our helper function
+                    simulate_multiple_rounds(rounds_to_skip)
+                    st.session_state.page = 'round'
+                    st.rerun()
     else:
         if st.button("Show End Results"):
             st.session_state.page = 'end'
@@ -623,11 +683,23 @@ elif st.session_state.page == 'second_game_round':    # Show Round 0 for second 
     st.metric("Round Output", round_output)
     st.metric("Total Output", total_output)
     st.metric("Total WIP", total_wip)
+    
+    # Next round or end buttons
     if st.session_state.round_num < NUM_ROUNDS:
-        if st.button("Next Round"):
-            st.session_state.round_num += 1
-            st.session_state.page = 'second_game_round'
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Next Round"):
+                st.session_state.round_num += 1
+                st.session_state.page = 'second_game_round'
+                st.rerun()
+        with col2:
+            rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
+            if rounds_to_skip > 0:
+                if st.button(f"Skip {rounds_to_skip} Rounds"):
+                    # Simulate multiple rounds using our helper function
+                    simulate_multiple_rounds(rounds_to_skip)
+                    st.session_state.page = 'second_game_round'
+                    st.rerun()
     else:
         if st.button("Show Comparison"):
             st.session_state.page = 'comparison'
