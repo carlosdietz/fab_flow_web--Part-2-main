@@ -240,27 +240,30 @@ elif st.session_state.page == 'quiz':
         "What is the raw process time?",
         "What could the average cycle time be?"
     ]
+    correct_answers = [
+        "Expected Value of a Die Roll = (1+2+3+4+5+6)/6 = 3.5",
+        "Estimates e.g. 70 finished Units after 20 rounds (20 * 3.5 = 70)",
+        "A unit can pass through max. one station per round, so RPT is 10 with 10 stations.",
+        "Estimates, but higher than 10, because of Waiting Times in Production Stations!"
+    ]
+    
     quiz_answers = st.session_state.quiz_answers
     for i, q in enumerate(quiz_questions):
         quiz_answers[i] = st.text_input(f"{i+1}. {q}", value=quiz_answers[i], key=f"quiz_{i}")
-    if st.button("Submit Quiz"):
-        if all(a.strip() for a in quiz_answers):
-            st.session_state.quiz_submitted = True
-            st.session_state.quiz_answers = quiz_answers
-        else:
-            st.warning("Please answer all questions!")
-    if st.session_state.quiz_submitted:
-        correct_answers = [
-            "Expected Value of a Die Roll = (1+2+3+4+5+6)/6 = 3.5",
-            "Estimates e.g. 70 finished Units after 20 rounds (20 * 3.5 = 70)",
-            "A unit can pass through max. one station per round, so RPT is 10 with 10 stations.",
-            "Estimates, but higher than 10, because of Waiting Times in Production Stations!"
-        ]
-        st.success("Quiz submitted! Here are the correct answers:")
-        for i, q in enumerate(quiz_questions):
-            st.markdown(f"**{i+1}. {q}**")
-            st.markdown(f"Your answer: {quiz_answers[i]}")
-            st.markdown(f"Correct: {correct_answers[i]}")
+        # Show the correct answer if quiz is submitted
+        if st.session_state.quiz_submitted:
+            st.success(f"**Correct Answer:** {correct_answers[i]}")
+            
+    # Show either submit or start game button based on quiz_submitted state
+    if not st.session_state.quiz_submitted:
+        if st.button("Submit Quiz"):
+            if all(a.strip() for a in quiz_answers):
+                st.session_state.quiz_submitted = True
+                st.session_state.quiz_answers = quiz_answers
+                st.rerun()  # Rerun to update the page with correct answers
+            else:
+                st.warning("Please answer all questions!")
+    else:
         if st.button("Start Game"):
             st.session_state.stations = initialize_stations(START_WIP)
             st.session_state.round_num = 0
@@ -307,16 +310,16 @@ elif st.session_state.page in ['initial', 'round']:
             <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
-                        <p style='font-size:18px;'>0</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Round Output:</p>
+                        <p style='font-size:24px; font-weight:bold;'>0</p>
                     </div>
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
-                        <p style='font-size:18px;'>0</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total Output:</p>
+                        <p style='font-size:24px; font-weight:bold;'>0</p>
                     </div>
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
-                        <p style='font-size:18px;'>{total_wip}</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total WIP:</p>
+                        <p style='font-size:24px; font-weight:bold;'>{total_wip}</p>
                     </div>
                 </div>
             </div>
@@ -451,16 +454,16 @@ elif st.session_state.page in ['initial', 'round']:
         <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
-                    <p style='font-size:18px;'>{round_output}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Round Output:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{round_output}</p>
                 </div>
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
-                    <p style='font-size:18px;'>{total_output}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total Output:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{total_output}</p>
                 </div>
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
-                    <p style='font-size:18px;'>{total_wip}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total WIP:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{total_wip}</p>
                 </div>
             </div>
         </div>
@@ -642,16 +645,16 @@ elif st.session_state.page == 'second_game_round':
             <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
-                        <p style='font-size:18px;'>0</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Round Output:</p>
+                        <p style='font-size:24px; font-weight:bold;'>0</p>
                     </div>
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
-                        <p style='font-size:18px;'>0</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total Output:</p>
+                        <p style='font-size:24px; font-weight:bold;'>0</p>
                     </div>
                     <div style="flex: 1; text-align:center;">
-                        <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
-                        <p style='font-size:18px;'>{total_wip}</p>
+                        <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total WIP:</p>
+                        <p style='font-size:24px; font-weight:bold;'>{total_wip}</p>
                     </div>
                 </div>
             </div>
@@ -774,16 +777,16 @@ elif st.session_state.page == 'second_game_round':
         <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
-                    <p style='font-size:18px;'>{round_output}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Round Output:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{round_output}</p>
                 </div>
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
-                    <p style='font-size:18px;'>{total_output}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total Output:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{total_output}</p>
                 </div>
                 <div style="flex: 1; text-align:center;">
-                    <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
-                    <p style='font-size:18px;'>{total_wip}</p>
+                    <p style='font-weight:bold; margin-bottom:8px; font-size:20px;'>Total WIP:</p>
+                    <p style='font-size:24px; font-weight:bold;'>{total_wip}</p>
                 </div>
             </div>
         </div>
