@@ -259,6 +259,11 @@ elif st.session_state.page in ['initial', 'round']:
     # start_wip = [s.wip for s in st.session_state.stations]  # Remove this, now handled in process_round
 
     # Only process round if not already processed for this round
+    # --- FIX: Always use dice_range fallback logic ---
+    if st.session_state.dice_range_override is not None:
+        dice_range = st.session_state.dice_range_override
+    else:
+        dice_range = DICE_RANGE
     if len(st.session_state.dice_history) < st.session_state.round_num:
         (
             st.session_state.prev_incoming,
@@ -273,7 +278,7 @@ elif st.session_state.page in ['initial', 'round']:
         ) = process_round(
             st.session_state.stations,
             st.session_state.prev_incoming,
-            st.session_state.dice_range_override,
+            dice_range,
             st.session_state.round_num,
             st.session_state.finished_units,
             st.session_state.finished_cycles,
