@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import random
 import plotly.graph_objects as go
 import pandas as pd
@@ -20,7 +20,7 @@ class Station:
         self.capacity = 0
         self.throughput = 0
         self.fifo = fifo if fifo is not None else []
-        self.output = 0  # <-- Add this line
+        self.output = 0
 
 def initialize_stations(start_wip):
     stations = []
@@ -75,7 +75,7 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
                     tracked_units[unit_id]['exit'] = round_num + 1
                 if unit_id.startswith("U1-") and entry_round > 0:
                     finished_cycles.append((round_num + 1) - entry_round)
-    # --- Update WIP for each station after all throughputs are calculated ---
+    # Update WIP for each station after all throughputs are calculated
     for i in range(NUM_STEPS):
         if i == 0:
             stations[i].wip = max(0, start_wip_per_step[i] - throughputs[i])
@@ -93,7 +93,7 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
         end_wip_per_step,
         total_end_wip,
         round_finished_units,
-        start_wip_per_step  # Add start_wip_per_step to return for UI
+        start_wip_per_step
     )
 
 def get_tracked_avg_cycle_time(tracked_units):
@@ -156,7 +156,7 @@ def simulate_multiple_rounds(num_rounds):
 
 # --- Streamlit UI ---
 
-# --- At the top, ensure session state flags are set ---
+# Initialize session state variables
 if "show_round_0" not in st.session_state:
     st.session_state.show_round_0 = False
 
@@ -215,7 +215,7 @@ if st.session_state.page == 'welcome':
     except Exception:
         st.warning("Background image not found.")
     st.markdown("<h1 style='color:#1a237e;'>Welcome to the Dice Game!</h1>", unsafe_allow_html=True)
-    st.markdown("""    
+    st.markdown("""
     <div style='font-size:18px;'>
     <ul>
       <li>You control a <b>10-Step Manufacturing Chain</b> (From raw materials to finished goods)</li>
@@ -230,6 +230,7 @@ if st.session_state.page == 'welcome':
     if st.button("Next"):
         st.session_state.page = 'quiz'
         st.rerun()
+
 # --- Quiz Page ---
 elif st.session_state.page == 'quiz':
     st.markdown("### Quiz: Please answer the following questions before starting the game.")
@@ -267,7 +268,6 @@ elif st.session_state.page == 'quiz':
             st.session_state.page = 'initial'
             st.rerun()
 
-
 # --- Game Board Page ---
 elif st.session_state.page in ['initial', 'round']:
     if st.session_state.show_round_0:
@@ -295,7 +295,7 @@ elif st.session_state.page in ['initial', 'round']:
         
         st.markdown("---")
         st.markdown("### KPI Panel")
-          # Create a horizontal layout for KPI metrics and buttons
+        # Create a horizontal layout for KPI metrics and buttons
         kpi_col, buttons_col = st.columns([3, 1])
         
         with kpi_col:
@@ -327,6 +327,7 @@ elif st.session_state.page in ['initial', 'round']:
                 st.session_state.page = 'round'
                 st.rerun()
         st.stop()
+        
     if st.session_state.page == 'initial':
         reset_game_state()
         st.session_state.round_num = 1
@@ -335,10 +336,7 @@ elif st.session_state.page in ['initial', 'round']:
 
     # Only process round if not already processed for this round
     # --- FIX: Always use dice_range fallback logic ---
-    if st.session_state.dice_range_override is not None:
-        dice_range = st.session_state.dice_range_override
-    else:
-        dice_range = DICE_RANGE
+    dice_range = st.session_state.dice_range_override if st.session_state.dice_range_override is not None else DICE_RANGE
     if len(st.session_state.dice_history) < st.session_state.round_num:
         (
             st.session_state.prev_incoming,
@@ -380,7 +378,9 @@ elif st.session_state.page in ['initial', 'round']:
         if 'start_wip_history' in st.session_state and len(st.session_state.start_wip_history) >= st.session_state.round_num:
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
         else:
-            start_wip_per_step = [4]*NUM_STEPS    # Always define dice, throughputs, end_wip_per_step, total_end_wip, start_wip_per_step for the UI below
+            start_wip_per_step = [4]*NUM_STEPS
+
+    # Always define dice, throughputs, end_wip_per_step, total_end_wip, start_wip_per_step for the UI below
     if len(st.session_state.dice_history) >= st.session_state.round_num:
         dice = st.session_state.dice_history[st.session_state.round_num-1]
         throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
@@ -388,7 +388,8 @@ elif st.session_state.page in ['initial', 'round']:
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
         if len(st.session_state.start_wip_history) >= st.session_state.round_num:
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
-        else:            start_wip_per_step = [4]*NUM_STEPS
+        else:
+            start_wip_per_step = [4]*NUM_STEPS
     
     # Show stations as machines with wafers
     st.markdown("### Manufacturing Chain")
@@ -404,1007 +405,508 @@ elif st.session_state.page in ['initial', 'round']:
                 st.image(f"images/dice{dice[i]}.png", width=30)
             except Exception:
                 st.warning(f"Missing image: images/dice{dice[i]}.png")
+            
             # Available to process WIP (small wafer images in a line)
             if i == 0:
                 st.markdown(f"Available to process WIP: ∞")
-
             else:
-
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-
                 st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
-
                 if isinstance(available_wip, int) and available_wip > 0:
-
                     if available_wip > 17:
-
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
-
                     else:
-
                         wafer_imgs = ["images/wafer_available.png"] * available_wip
-
                     st.image(wafer_imgs, width=18)
-
             
-
-
             # End WIP after processing (small wafer_arrived images in a line)
-
             if i != 0:
-
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-
                 st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
-
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
-
                     if end_wip_val > 17:
-
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
-
                     else:
-
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
-
                     st.image(wafer_arrived_imgs, width=18)
 
-
-
     # KPI Panel
-
     st.markdown("---")
-
     st.markdown("### KPI Panel")
-
-      # Create a horizontal layout for KPI metrics and buttons
-
-    kpi_col, buttons_col = st.columns([3, 1])
-
     
-
+    # Create a horizontal layout for KPI metrics and buttons
+    kpi_col, buttons_col = st.columns([3, 1])
+    
     with kpi_col:
-
         # Create a light gray box for KPI metrics with more padding
-
         st.markdown("""
-
-
         <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-
         <div style="display:flex; justify-content:space-between;">
-
         """, unsafe_allow_html=True)
-
         
-
         total_output = sum(st.session_state.round_outputs)
-
         round_output = st.session_state.round_outputs[-1]
-
         total_wip = sum(e for e in end_wip_per_step[1:10] if isinstance(e, int))
-
         
-
         # Display metrics horizontally with more spacing
-
         col1, col2, col3 = st.columns(3)
-
         with col1:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> {round_output}", unsafe_allow_html=True)
-
         with col2:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> {total_output}", unsafe_allow_html=True)
-
         with col3:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-
         
-
         st.markdown("</div></div>", unsafe_allow_html=True)
-
-      # Next round or end buttons in the right column
-
+    
+    # Next round or end buttons in the right column
     with buttons_col:
-
         if st.session_state.round_num < NUM_ROUNDS:
-
             # Make buttons larger with custom styling
-
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
             if st.button("Next Round", use_container_width=True):
-
                 st.session_state.round_num += 1
-
                 st.session_state.page = 'round'  # <-- Changed to 'round' for main game
-
                 st.rerun()
-
             
-
             rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
-
             if rounds_to_skip > 0:
-
                 if st.button(f"Skip {rounds_to_skip} Rounds", use_container_width=True):
-
                     # Simulate multiple rounds using our helper function
-
                     simulate_multiple_rounds(rounds_to_skip)
-
                     st.session_state.page = 'round'  # <-- Changed to 'round' for main game
-
                     st.rerun()
-
         else:
-
             if st.button("Show End Results", use_container_width=True):  # <-- Changed text
-
                 st.session_state.page = 'end'  # <-- Changed to 'end' for main game
-
                 st.rerun()
-
-
 
 # --- End Results Page ---
-
 elif st.session_state.page == 'end':
-
     total_output = sum(st.session_state.round_outputs)
-
     total_end_wip = st.session_state.total_end_wip_history[-1] if st.session_state.total_end_wip_history else 0
-
     tracked_avg_cycle_time = get_tracked_avg_cycle_time(st.session_state.tracked_units)
-
     
-
     # Store original game results for later comparison
-
     st.session_state.original_game_results = {
-
         "Total Output": total_output,
-
         "End WIP": total_end_wip,
-
         "Tracked AVG Cycle Time": tracked_avg_cycle_time
-
     }
-
     
-
     st.markdown("## GAME END")
-
     st.success(f"Total Output: {total_output} {ICONS['output']}")
-
     st.info(f"Tracked AVG CYCLE TIME: {tracked_avg_cycle_time:.2f} {ICONS['clock']}")
-
     st.warning(f"TOTAL WIP: {total_end_wip} {ICONS['wip']}")
-
     
-
     # Always show the Next (Second Quiz) button at the end of the first game
-
     if st.button("Next (Second Quiz)"):
-
         st.session_state.page = 'second_quiz'
-
         st.rerun()
 
-
-
 # --- Second Quiz Page ---
-
 elif st.session_state.page == 'second_quiz':
-
     st.markdown("### Second Quiz: Prioritize the following options (1 = highest priority, 3 = lowest):")
-
     options = [
-
         "A) Increase peak Machine Capacity to random (1,2,3,4,5,6,7)",
-
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
-
         "C) Increase Start WIP at each step to 5"
-
     ]
-
     second_quiz = st.session_state.second_quiz
-
     for i, opt in enumerate(options):
-
         second_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(second_quiz[i]), key=f"second_quiz_{i}")
-
     if st.button("Submit Priorities"):
-
         if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:
-
             st.session_state.second_quiz_submitted = True
-
         else:
-
             st.warning("Please assign unique priorities 1, 2, and 3!")
-
     if st.session_state.second_quiz_submitted:
-
         st.success("Priorities submitted!")
-
         if st.button("Start Second Game"):
-
             st.session_state.page = 'second_game'
-
             st.rerun()
 
-
-
 # --- Second Game and Simulations ---
-
 elif st.session_state.page == 'second_game':
-
     # Simulate all alternatives
-
     priorities = st.session_state.second_quiz
-
     options = ["A", "B", "C"]
-
     top_choice = options[priorities.index("1")]
-
     st.session_state.second_game_user_choice = top_choice
-
     settings = {
-
         "A": {"dice_range": (1, 7), "start_wip": 4},
-
         "B": {"dice_range": (2, 5), "start_wip": 4},
-
         "C": {"dice_range": (1, 6), "start_wip": 5},
-
     }
-
     results = {}
-
     for opt in options:
-
         stations = initialize_stations(settings[opt]["start_wip"])
-
         prev_incoming = [[] for _ in range(NUM_STEPS)]
-
         finished_units = []
-
         finished_cycles = []
-
         tracked_units = {}
-
         round_outputs = []
-
         for round_num in range(1, NUM_ROUNDS + 1):
-
             (
-
                 prev_incoming,
-
                 throughputs,
-
                 dice,
-
                 finished_units,
-
                 finished_cycles,
-
                 end_wip_per_step,
-
                 total_end_wip,
-
                 round_finished_units,
-
                 _  # start_wip_per_step (unused in simulation)
-
             ) = process_round(
-
                 stations,
-
                 prev_incoming,
-
                 settings[opt]["dice_range"],
-
                 round_num,
-
                 finished_units,
-
                 finished_cycles,
-
                 tracked_units
-
             )
-
             round_outputs.append(len(round_finished_units))
-
         total_output = sum(round_outputs)
-
         tracked_avg_cycle_time = get_tracked_avg_cycle_time(tracked_units)
-
         results[opt] = {
-
             "Total Output": total_output,
-
             "End WIP": total_end_wip,
-
             "Tracked AVG Cycle Time": tracked_avg_cycle_time
-
         }
-
     st.session_state.second_game_results = results
-
     # Now play the actual game for the user's top choice
-
     reset_game_state()
-
     st.session_state.stations = initialize_stations(settings[top_choice]["start_wip"])
-
     st.session_state.dice_range_override = settings[top_choice]["dice_range"]
-
-    st.session_state.round_num = 1  # <-- Add this line
-
+    st.session_state.round_num = 1
     st.session_state.page = 'second_game_round'
-
     st.rerun()
 
-
-
-
-
-elif st.session_state.page == 'second_game_round':    # Show Round 0 for second game
-
+elif st.session_state.page == 'second_game_round':
+    # Show Round 0 for second game
     if st.session_state.round_num == 1 and not getattr(st.session_state, "second_game_round0_done", False):
-
         st.markdown("## Round 0")
-
         st.markdown("### Manufacturing Chain")
-
         
-
         # Use the correct start_wip for the selected option
-
         top_choice = st.session_state.second_game_user_choice
-
         settings = {
-
             "A": {"dice_range": (1, 7), "start_wip": 4},
-
             "B": {"dice_range": (2, 5), "start_wip": 4},
-
             "C": {"dice_range": (1, 6), "start_wip": 5},
-
         }
-
         
-
         round0_wip = [999] + [settings[top_choice]["start_wip"]]*(NUM_STEPS-1)
-
         floor_cols = st.columns(NUM_STEPS)
-
         
-
         for i in range(NUM_STEPS):
-
             with floor_cols[i]:
-
                 try:
-
                     st.image("images/machine.png", width=60)
-
                 except Exception:
-
                     st.warning("Missing image: images/machine.png")
-
                 
-
                 st.markdown(f"**Step {i+1}**")
-
                 st.image("images/dice1.png", width=30)
-
                 
-
                 # Initial WIP with small images
-
                 st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
-
                 if i != 0 and round0_wip[i] != 999:
-
                     if round0_wip[i] > 17:
-
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
-
                     else:
-
                         wafer_imgs = ["images/wafer_available.png"] * round0_wip[i]
-
                     st.image(wafer_imgs, width=18)
-
         
-
         st.markdown("---")
-
         st.markdown("### KPI Panel")
-
         
-
         # Create a horizontal layout for KPI metrics and buttons
-
         kpi_col, buttons_col = st.columns([3, 1])
-
         
-
         with kpi_col:
-
             # Create a light gray box for KPI metrics with more padding
-
             st.markdown("""
-
-
             <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-
             <div style="display:flex; justify-content:space-between;">
-
             """, unsafe_allow_html=True)
-
             
-
             total_wip = sum(round0_wip[1:])
-
             
-
             # Display metrics horizontally with more spacing
-
             col1, col2, col3 = st.columns(3)
-
             with col1:
-
                 st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> 0", unsafe_allow_html=True)
-
             with col2:
-
                 st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> 0", unsafe_allow_html=True)
-
             with col3:
-
                 st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-
             
-
             st.markdown("</div></div>", unsafe_allow_html=True)
-
-          # Next round button in the right column
-
+          
+        # Next round button in the right column
         with buttons_col:
-
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
             if st.button("Next Round", key="second_game_next_round0_btn", use_container_width=True):
-
                 # Important: When going from Round 0 to Round 1 in second game
-
                 # 1. Set round_num to 1
-
                 # 2. Do NOT reset histories
-
                 # 3. Create a special flag to indicate we're done with Round 0
-
                 st.session_state.round_num = 1
-
                 st.session_state.second_game_round0_done = True
-
                 st.rerun()
-
         st.stop()
 
-
-
-    # Only process round if not already processed for this round
-
-    # Always ensure dice_range is set and never None, using override if present
-
+    # Process round logic - similar to main game but with user's chosen dice_range
     dice_range = st.session_state.dice_range_override if st.session_state.dice_range_override is not None else DICE_RANGE
-
     if len(st.session_state.dice_history) < st.session_state.round_num:
-
         (
-
             st.session_state.prev_incoming,
-
             throughputs,
-
             dice,
-
             st.session_state.finished_units,
-
             st.session_state.finished_cycles,
-
             end_wip_per_step,
-
             total_end_wip,
-
             round_finished_units,
-
             start_wip_per_step
-
         ) = process_round(
-
             st.session_state.stations,
-
             st.session_state.prev_incoming,
-
             dice_range,
-
             st.session_state.round_num,
-
             st.session_state.finished_units,
-
             st.session_state.finished_cycles,
-
             st.session_state.tracked_units
-
         )
-
         # After process_round, set output for each station
-
         for i, s in enumerate(st.session_state.stations):
-
             s.output = throughputs[i]
-
         round_output = len(round_finished_units)
         st.session_state.round_outputs.append(round_output)
-
         st.session_state.dice_history.append(dice)
-
         st.session_state.throughputs_history.append(throughputs)
-
         st.session_state.end_wip_history.append(end_wip_per_step)
-
         st.session_state.total_end_wip_history.append(total_end_wip)
-
         st.session_state.round_finished_units_history.append(round_finished_units)
-
         if 'start_wip_history' not in st.session_state:
-
             st.session_state.start_wip_history = []
-
         st.session_state.start_wip_history.append(start_wip_per_step)
-
     else:
-
         dice = st.session_state.dice_history[st.session_state.round_num-1]
-
         throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
-
         end_wip_per_step = st.session_state.end_wip_history[st.session_state.round_num-1]
-
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
-
         if 'start_wip_history' in st.session_state and len(st.session_state.start_wip_history) >= st.session_state.round_num:
-
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
-
         else:
-
-            start_wip_per_step = [4]*NUM_STEPS    # Show the current round number
+            start_wip_per_step = [4]*NUM_STEPS
+            
+    # Show the current round number
     st.markdown(f"## Round {st.session_state.round_num}")
     st.markdown("### Manufacturing Chain")
 
     floor_cols = st.columns(NUM_STEPS)
-
     for i, s in enumerate(st.session_state.stations):
-
         with floor_cols[i]:
-
             try:
-
                 st.image("images/machine.png", width=60)
-
             except Exception:
-
                 st.warning("Missing image: images/machine.png")
-
             st.markdown(f"**Step {i+1}**")
-
             try:
-
                 st.image(f"images/dice{dice[i]}.png", width=30)
-
             except Exception:
-
                 st.warning(f"Missing image: images/dice{dice[i]}.png")
-
             
-
             # Available to process WIP (small wafer images in a line)
-
             if i == 0:
-
                 st.markdown(f"Available to process WIP: ∞")
-
             else:
-
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-
                 st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
-
                 if isinstance(available_wip, int) and available_wip > 0:
-
                     if available_wip > 17:
-
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
-
                     else:
-
                         wafer_imgs = ["images/wafer_available.png"] * available_wip
-
                     st.image(wafer_imgs, width=18)
-
             
-
-
             # End WIP after processing (small wafer_arrived images in a line)
-
             if i != 0:
-
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-
                 st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
-
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
-
                     if end_wip_val > 17:
-
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
-
                     else:
-
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
-
                     st.image(wafer_arrived_imgs, width=18)
-
     
-
     st.markdown("---")
-
     st.markdown("### KPI Panel")
-
     
-
     # Create a horizontal layout for KPI metrics and buttons
-
     kpi_col, buttons_col = st.columns([3, 1])
-
     
-
     with kpi_col:
-
         # Create a light gray box for KPI metrics with more padding
-
         st.markdown("""
-
-
         <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-
         <div style="display:flex; justify-content:space-between;">
-
         """, unsafe_allow_html=True)
-
         
-
         total_output = sum(st.session_state.round_outputs)
-
         round_output = st.session_state.round_outputs[-1]
-
         total_wip = sum(e for e in end_wip_per_step[1:10] if isinstance(e, int))
-
         
-
         # Display metrics horizontally with more spacing
-
         col1, col2, col3 = st.columns(3)
-
         with col1:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> {round_output}", unsafe_allow_html=True)
-
         with col2:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> {total_output}", unsafe_allow_html=True)
-
         with col3:
-
             st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-
         
-
         st.markdown("</div></div>", unsafe_allow_html=True)
-
     
-
     # Next round or end buttons in the right column
-
     with buttons_col:
-
         if st.session_state.round_num < NUM_ROUNDS:
-
             # Make buttons larger with custom styling
-
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
             if st.button("Next Round", use_container_width=True):
-
                 st.session_state.round_num += 1
-
                 st.session_state.page = 'second_game_round'
-
                 st.rerun()
-
             
-
             rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
-
             if rounds_to_skip > 0:
-
                 if st.button(f"Skip {rounds_to_skip} Rounds", use_container_width=True):
-
                     # Simulate multiple rounds using our helper function
-
                     simulate_multiple_rounds(rounds_to_skip)
-
                     st.session_state.page = 'second_game_round'
-
                     st.rerun()
-
         else:
-
             # Position the Show Comparison button in the same place as Next Round
-
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
             if st.button("Show Comparison", use_container_width=True):
-
                 st.session_state.page = 'comparison'
-
                 st.rerun()
-
-
 
 # --- Comparison Page ---
-
 elif st.session_state.page == 'comparison':
-
     st.markdown("## Comparison of Alternatives")
-
     
-
     # Add safety check to prevent attribute errors
-
     if not hasattr(st.session_state, 'second_game_results') or not st.session_state.second_game_results:
-
         st.error("Missing game results data. Please restart the game.")
-
         if st.button("Return to Welcome Page"):
-
             st.session_state.page = 'welcome'
-
             st.rerun()
-
         st.stop()
-
         
-
     if not hasattr(st.session_state, 'original_game_results') or not st.session_state.original_game_results:
-
         st.session_state.original_game_results = {
-
             "Total Output": 0,
-
             "End WIP": 0,
-
             "Tracked AVG Cycle Time": 0
-
         }
-
         st.warning("Original game results were missing. Using default values.")
-
     
-
     results = st.session_state.second_game_results
-
     original = st.session_state.original_game_results
 
-
-
     # Prepare data for diagrams and tables (add "Original" as the first row)
-
     df = pd.DataFrame({
-
         "Alternative": ["Original", "A", "B", "C"],
-
         "Total Output": [
-
             original["Total Output"],
-
             results["A"]["Total Output"],
-
             results["B"]["Total Output"],
-
             results["C"]["Total Output"]
-
         ],
-
         "End WIP": [
-
             original["End WIP"],
-
             results["A"]["End WIP"],
-
             results["B"]["End WIP"],
-
             results["C"]["End WIP"]
-
         ],
-
         "Tracked AVG Cycle Time": [
-
             original["Tracked AVG Cycle Time"],
-
             results["A"]["Tracked AVG Cycle Time"],
-
             results["B"]["Tracked AVG Cycle Time"],
-
             results["C"]["Tracked AVG Cycle Time"]
-
         ],
-
     })
 
-
-
     kpi_cols = st.columns(3)
-
     # WIP
-
     with kpi_cols[0]:
-
         st.markdown("<h4 style='color:#1976d2;'>Total WIP</h4>", unsafe_allow_html=True)
-
         fig = go.Figure([go.Bar(
-
             x=df["Alternative"],
-
             y=df["End WIP"],
-
             marker_color=["#757575", "#1976d2", "#64b5f6", "#90caf9"]
-
         )])
-
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-
         st.plotly_chart(fig, use_container_width=True)
-
         st.dataframe(df[["Alternative", "End WIP"]].set_index("Alternative"), use_container_width=True)
-
     # Output
-
     with kpi_cols[1]:
-
         st.markdown("<h4 style='color:#388e3c;'>Total Output</h4>", unsafe_allow_html=True)
-
         fig = go.Figure([go.Bar(
-
             x=df["Alternative"],
-
             y=df["Total Output"],
-
             marker_color=["#757575", "#388e3c", "#81c784", "#c8e6c9"]
-
         )])
-
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-
         st.plotly_chart(fig, use_container_width=True)
-
         st.dataframe(df[["Alternative", "Total Output"]].set_index("Alternative"), use_container_width=True)
-
     # Cycle Time
-
     with kpi_cols[2]:
-
         st.markdown("<h4 style='color:#fbc02d;'>Tracked AVG Cycle Time</h4>", unsafe_allow_html=True)
-
         fig = go.Figure([go.Bar(
-
             x=df["Alternative"],
-
             y=df["Tracked AVG Cycle Time"],
-
             marker_color=["#757575", "#fbc02d", "#ffe082", "#fff9c4"]
-
         )])
-
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-
         st.plotly_chart(fig, use_container_width=True)
-
         st.dataframe(df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative"), use_container_width=True)
 
-
-
     st.markdown(f"You played: Option {st.session_state.second_game_user_choice}")
-
     if st.button("Next (Final Quiz)"):
-
         st.session_state.page = 'third_quiz'
-
         st.rerun()
 
-
-
 # --- Third Quiz Page ---
-
 elif st.session_state.page == 'third_quiz':
-
     st.markdown("### Final Quiz: Now that you have seen the results, please prioritize the following options again (1 = highest priority, 3 = lowest):")
-
     options = [
-
         "A) Increase peak Machine Capacity to random (1,2,3,4,5,6,7)",
-
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
-
         "C) Increase Start WIP at each step to 5"
-
     ]
-
     third_quiz = st.session_state.third_quiz
-
     for i, opt in enumerate(options):
-
         third_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(third_quiz[i]), key=f"third_quiz_{i}")
-
     if st.button("Submit Final Priorities"):
-
         if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:
-
             st.session_state.third_quiz_submitted = True
-
         else:
-
             st.warning("Please assign unique priorities 1, 2, and 3!")
-
     if st.session_state.third_quiz_submitted:
-
         st.success("Final priorities submitted!")
-
         if st.button("Finish"):
-
             st.session_state.page = 'thank_you'
-
             st.rerun()
 
-
-
 # --- Thank You Page ---
-
 elif st.session_state.page == 'thank_you':
-
     st.balloons()
-
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
-
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
-
     st.markdown("You may now close this window.")
-
-
-
-
-
-
-
