@@ -300,23 +300,28 @@ elif st.session_state.page in ['initial', 'round']:
         
         with kpi_col:
             # Create a light gray box for KPI metrics with more padding
-            st.markdown("""
-            <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between;">
-            """, unsafe_allow_html=True)
-            
             total_wip = sum(round0_wip[1:])
             
-            # Display metrics horizontally with more spacing
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> 0", unsafe_allow_html=True)
-            with col2:
-                st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> 0", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-            
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            # Create HTML content for the metrics inside the gray box
+            html_content = f"""
+            <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
+                        <p style='font-size:18px;'>0</p>
+                    </div>
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
+                        <p style='font-size:18px;'>0</p>
+                    </div>
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
+                        <p style='font-size:18px;'>{total_wip}</p>
+                    </div>
+                </div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
         
         # Next round button in the right column
         with buttons_col:
@@ -408,10 +413,10 @@ elif st.session_state.page in ['initial', 'round']:
             
             # Available to process WIP (small wafer images in a line)
             if i == 0:
-                st.markdown(f"Available to process WIP: ∞")
+                st.markdown(f"Start WIP: ∞")
             else:
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-                st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
+                st.markdown(f"Start WIP: {available_wip if available_wip != 999 else '∞'}")
                 if isinstance(available_wip, int) and available_wip > 0:
                     if available_wip > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -422,15 +427,13 @@ elif st.session_state.page in ['initial', 'round']:
             # End WIP after processing (small wafer_arrived images in a line)
             if i != 0:
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-                st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
+                st.markdown(f"End WIP: {end_wip_val if end_wip_val != 999 else '∞'}")
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
                     if end_wip_val > 17:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
                     else:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
-                    st.image(wafer_arrived_imgs, width=18)
-
-    # KPI Panel
+                    st.image(wafer_arrived_imgs, width=18)    # KPI Panel
     st.markdown("---")
     st.markdown("### KPI Panel")
     
@@ -439,25 +442,30 @@ elif st.session_state.page in ['initial', 'round']:
     
     with kpi_col:
         # Create a light gray box for KPI metrics with more padding
-        st.markdown("""
-        <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-        <div style="display:flex; justify-content:space-between;">
-        """, unsafe_allow_html=True)
-        
         total_output = sum(st.session_state.round_outputs)
         round_output = st.session_state.round_outputs[-1]
         total_wip = sum(e for e in end_wip_per_step[1:10] if isinstance(e, int))
         
-        # Display metrics horizontally with more spacing
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> {round_output}", unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> {total_output}", unsafe_allow_html=True)
-        with col3:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-        
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        # Create HTML content for the metrics inside the gray box
+        html_content = f"""
+        <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
+                    <p style='font-size:18px;'>{round_output}</p>
+                </div>
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
+                    <p style='font-size:18px;'>{total_output}</p>
+                </div>
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
+                    <p style='font-size:18px;'>{total_wip}</p>
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(html_content, unsafe_allow_html=True)
     
     # Next round or end buttons in the right column
     with buttons_col:
@@ -627,23 +635,28 @@ elif st.session_state.page == 'second_game_round':
         
         with kpi_col:
             # Create a light gray box for KPI metrics with more padding
-            st.markdown("""
-            <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between;">
-            """, unsafe_allow_html=True)
-            
             total_wip = sum(round0_wip[1:])
             
-            # Display metrics horizontally with more spacing
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> 0", unsafe_allow_html=True)
-            with col2:
-                st.markdown("<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> 0", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-            
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            # Create HTML content for the metrics inside the gray box
+            html_content = f"""
+            <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
+                        <p style='font-size:18px;'>0</p>
+                    </div>
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
+                        <p style='font-size:18px;'>0</p>
+                    </div>
+                    <div style="flex: 1; text-align:center;">
+                        <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
+                        <p style='font-size:18px;'>{total_wip}</p>
+                    </div>
+                </div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
           
         # Next round button in the right column
         with buttons_col:
@@ -722,10 +735,10 @@ elif st.session_state.page == 'second_game_round':
             
             # Available to process WIP (small wafer images in a line)
             if i == 0:
-                st.markdown(f"Available to process WIP: ∞")
+                st.markdown(f"Start WIP: ∞")
             else:
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-                st.markdown(f"Available to process WIP: {available_wip if available_wip != 999 else '∞'}")
+                st.markdown(f"Start WIP: {available_wip if available_wip != 999 else '∞'}")
                 if isinstance(available_wip, int) and available_wip > 0:
                     if available_wip > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -736,7 +749,7 @@ elif st.session_state.page == 'second_game_round':
             # End WIP after processing (small wafer_arrived images in a line)
             if i != 0:
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-                st.markdown(f"End WIP after processing: {end_wip_val if end_wip_val != 999 else '∞'}")
+                st.markdown(f"End WIP: {end_wip_val if end_wip_val != 999 else '∞'}")
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
                     if end_wip_val > 17:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
@@ -752,25 +765,30 @@ elif st.session_state.page == 'second_game_round':
     
     with kpi_col:
         # Create a light gray box for KPI metrics with more padding
-        st.markdown("""
-        <div style="background-color:#f0f2f5; padding:15px; border-radius:5px; margin-bottom:10px;">
-        <div style="display:flex; justify-content:space-between;">
-        """, unsafe_allow_html=True)
-        
         total_output = sum(st.session_state.round_outputs)
         round_output = st.session_state.round_outputs[-1]
         total_wip = sum(e for e in end_wip_per_step[1:10] if isinstance(e, int))
         
-        # Display metrics horizontally with more spacing
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p> {round_output}", unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p> {total_output}", unsafe_allow_html=True)
-        with col3:
-            st.markdown(f"<p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p> {total_wip}", unsafe_allow_html=True)
-        
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        # Create HTML content for the metrics inside the gray box
+        html_content = f"""
+        <div style="background-color:#f0f2f5; padding:25px; border-radius:8px; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Round Output:</p>
+                    <p style='font-size:18px;'>{round_output}</p>
+                </div>
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Total Output:</p>
+                    <p style='font-size:18px;'>{total_output}</p>
+                </div>
+                <div style="flex: 1; text-align:center;">
+                    <p style='font-weight:bold; margin-bottom:8px;'>Total WIP:</p>
+                    <p style='font-size:18px;'>{total_wip}</p>
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(html_content, unsafe_allow_html=True)
     
     # Next round or end buttons in the right column
     with buttons_col:
