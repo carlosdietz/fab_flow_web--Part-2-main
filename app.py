@@ -504,16 +504,9 @@ elif st.session_state.page == 'second_game_round':
         st.metric("Total Output", 0)
         total_wip = sum(round0_wip[1:])
         st.metric("Total WIP", total_wip)
-        if st.button("Next Round", key="second_next_round0_btn"):
-            # Set dice_range_override and re-init state for the selected option
-            top_choice = st.session_state.second_game_user_choice
-            settings = {
-                "A": {"dice_range": (1, 7), "start_wip": 4},
-                "B": {"dice_range": (2, 5), "start_wip": 4},
-                "C": {"dice_range": (1, 6), "start_wip": 5},
-            }
-            st.session_state.dice_range_override = settings[top_choice]["dice_range"]
-            st.session_state.round_num = 1
+        if st.button("Next Round", key="second_game_next_round0_btn"):
+            st.session_state.show_round_0 = False
+            st.session_state.round_num = 2  # Advance to Round 1 (since round_num==1 is Round 0)
             st.session_state.dice_history = []
             st.session_state.throughputs_history = []
             st.session_state.end_wip_history = []
