@@ -2,3 +2,4 @@ streamlit
 plotly
 pandas
 openpyxl
+# Note: sqlite3 is part of Python's standard library

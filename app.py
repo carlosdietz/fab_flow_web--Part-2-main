@@ -71,6 +71,38 @@ if 'admin' in st.query_params:
                     st.warning("No database file found. Run the game first to generate data.")
             except Exception as e:
                 st.error(f"Error exporting data: {str(e)}")
+        
+        # Add database management options
+        st.markdown("### Database Management")
+        
+        # Add a delete button with confirmation
+        delete_col1, delete_col2 = st.columns(2)
+        
+        with delete_col1:
+            if st.button("Delete All Data", key="delete_all_data"):
+                st.session_state.confirm_delete = True
+                
+        with delete_col2:
+            if st.session_state.get('confirm_delete', False):
+                if st.button("⚠️ Confirm Delete", key="confirm_delete_all_data"):
+                    try:
+                        if os.path.exists('data/game_results.db'):
+                            conn = sqlite3.connect('data/game_results.db')
+                            c = conn.cursor()
+                            c.execute("DELETE FROM user_results")
+                            conn.commit()
+                            conn.close()
+                            st.success("All data has been deleted!")
+                            st.session_state.confirm_delete = False
+                            # Reset the session state data_saved flag for the current session
+                            st.session_state.data_saved = False
+                        else:
+                            st.warning("No database file found.")
+                    except Exception as e:
+                        st.error(f"Error deleting data: {str(e)}")
+                        
+                if st.button("Cancel", key="cancel_delete"):
+                    st.session_state.confirm_delete = False
 
 # --- Backend logic ---
 NUM_STEPS = 10
@@ -223,7 +255,8 @@ def simulate_multiple_rounds(num_rounds):
 
 def save_data_to_database(username):
     """
-    Saves all user data to SQLite database including quiz answers and game results
+    Saves all user data to SQLite database including quiz answers and game results.
+    Returns True if data was saved, False if data for this username+timestamp already exists.
     """
     # Create data directory if it doesn't exist
     os.makedirs('data', exist_ok=True)
@@ -336,10 +369,12 @@ def save_data_to_database(username):
         game2_C_cycle_time, game2_C_output, game2_C_wip,
         third_quiz[0], third_quiz[1], third_quiz[2]
     ))
-    
-    # Commit changes and close connection
+      # Commit changes and close connection
     conn.commit()
     conn.close()
+    
+    # Mark in session state that data has been saved to prevent duplicates
+    st.session_state.data_saved = True
     return True
 
 # --- Streamlit UI ---
@@ -372,6 +407,7 @@ if 'page' not in st.session_state:
     st.session_state.third_quiz_submitted = False
     st.session_state.dice_range_override = None
     st.session_state.username = ""
+    st.session_state.data_saved = False  # Flag to track if data has been saved to prevent duplicates
     # Initialize results storage
     st.session_state.original_game_results = {
         "Total Output": 0,
@@ -1161,12 +1197,16 @@ elif st.session_state.page == 'thank_you':
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
     
-    # Save all data to the database
-    try:
-        save_data_to_database(st.session_state.username)
-        st.success(f"Your game data has been successfully saved with username: {st.session_state.username}")
-    except Exception as e:
-        st.error(f"Error saving data: {str(e)}")
+    # Save all data to the database only if not saved yet
+    if not st.session_state.get('data_saved', False):
+        try:
+            save_data_to_database(st.session_state.username)
+            st.success(f"Your game data has been successfully saved with username: {st.session_state.username}")
+            st.session_state.data_saved = True  # Mark as saved
+        except Exception as e:
+            st.error(f"Error saving data: {str(e)}")
+    else:
+        st.success(f"Your game data was previously saved with username: {st.session_state.username}")
     
     # Only show database viewing/export options for admin users
     if 'admin' in st.query_params:
