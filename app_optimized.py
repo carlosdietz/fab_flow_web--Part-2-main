@@ -2,8 +2,65 @@ import streamlit as st
 import random
 import plotly.graph_objects as go
 import pandas as pd
+import sqlite3
+import os
+import datetime
 
 st.set_page_config(page_title="Dice Game - Semiconductor Manufacturing Chain", layout="wide")
+
+# Admin sidebar for data export - only visible if 'admin' query parameter is present
+if 'admin' in st.query_params:
+    with st.sidebar:
+        st.title("Admin Tools")
+        st.markdown("### Export Data")
+        if st.button("Export to CSV"):
+            try:
+                if os.path.exists('data/game_results.db'):
+                    conn = sqlite3.connect('data/game_results.db')
+                    results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
+                    conn.close()
+                    
+                    # Reorder columns for better readability (matches the requested order)
+                    column_order = [
+                        'username', 'timestamp',
+                        'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
+                        'game1_cycle_time', 'game1_output', 'game1_wip',
+                        'prioritization_A', 'prioritization_B', 'prioritization_C',
+                        'game2_A_cycle_time', 'game2_A_output', 'game2_A_wip',
+                        'game2_B_cycle_time', 'game2_B_output', 'game2_B_wip',
+                        'game2_C_cycle_time', 'game2_C_output', 'game2_C_wip',
+                        'final_prioritization_A', 'final_prioritization_B', 'final_prioritization_C'
+                    ]
+                    
+                    # Make sure we only include columns that exist in the dataframe
+                    valid_columns = [col for col in column_order if col in results_df.columns]
+                    
+                    # Add any columns that weren't in our list at the end
+                    for col in results_df.columns:
+                        if col not in valid_columns and col != 'id':
+                            valid_columns.append(col)
+                    
+                    # Export to CSV with ordered columns
+                    csv_filename = f"game_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    results_df[valid_columns].to_csv(f"data/{csv_filename}", index=False)
+                    
+                    st.success(f"Data exported to data/{csv_filename}")
+                    
+                    # Also show a preview
+                    st.dataframe(results_df[valid_columns].head())
+                    
+                    # Create download link
+                    with open(f"data/{csv_filename}", "rb") as file:
+                        st.download_button(
+                            label="Download CSV File",
+                            data=file,
+                            file_name=csv_filename,
+                            mime="text/csv"
+                        )
+                else:
+                    st.warning("No database file found. Run the game first to generate data.")
+            except Exception as e:
+                st.error(f"Error exporting data: {str(e)}")
 
 # --- Backend logic ---
 NUM_STEPS = 10
@@ -154,6 +211,127 @@ def simulate_multiple_rounds(num_rounds):
     
     return st.session_state.round_num
 
+def save_data_to_database(username):
+    """
+    Saves all user data to SQLite database including quiz answers and game results
+    """
+    # Create data directory if it doesn't exist
+    os.makedirs('data', exist_ok=True)
+    
+    # Connect to SQLite database
+    conn = sqlite3.connect('data/game_results.db')
+    c = conn.cursor()
+    
+    # Create table if it doesn't exist - with separate columns for each data point
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS user_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        timestamp TEXT,
+        
+        quiz1_answer1 TEXT,
+        quiz1_answer2 TEXT,
+        quiz1_answer3 TEXT,
+        quiz1_answer4 TEXT,
+        
+        game1_cycle_time REAL,
+        game1_output INTEGER,
+        game1_wip INTEGER,
+        
+        prioritization_A TEXT,
+        prioritization_B TEXT,
+        prioritization_C TEXT,
+        
+        game2_A_cycle_time REAL,
+        game2_A_output INTEGER,
+        game2_A_wip INTEGER,
+        
+        game2_B_cycle_time REAL,
+        game2_B_output INTEGER,
+        game2_B_wip INTEGER,
+        
+        game2_C_cycle_time REAL,
+        game2_C_output INTEGER,
+        game2_C_wip INTEGER,
+        
+        final_prioritization_A TEXT,
+        final_prioritization_B TEXT,
+        final_prioritization_C TEXT
+    )
+    ''')
+    
+    # Extract data from session state
+    quiz1_answers = st.session_state.get('quiz_answers', ['', '', '', ''])
+    while len(quiz1_answers) < 4:
+        quiz1_answers.append('')
+    
+    # Game 1 results - using defaults if not available
+    original_game_results = st.session_state.get('original_game_results', {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0})
+    game1_cycle_time = original_game_results.get('Tracked AVG Cycle Time', 0)
+    game1_output = original_game_results.get('Total Output', 0)
+    game1_wip = original_game_results.get('End WIP', 0)
+    
+    # Second quiz prioritization
+    second_quiz = st.session_state.get('second_quiz', ['', '', ''])
+    while len(second_quiz) < 3:
+        second_quiz.append('')
+    
+    # Game 2 results for all alternatives - using defaults if not available
+    second_game_results = st.session_state.get('second_game_results', {
+        'A': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
+        'B': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
+        'C': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0}
+    })
+    
+    # Extract each value individually to ensure proper data types
+    game2_A_cycle_time = second_game_results.get('A', {}).get('Tracked AVG Cycle Time', 0)
+    game2_A_output = second_game_results.get('A', {}).get('Total Output', 0)
+    game2_A_wip = second_game_results.get('A', {}).get('End WIP', 0)
+    
+    game2_B_cycle_time = second_game_results.get('B', {}).get('Tracked AVG Cycle Time', 0)
+    game2_B_output = second_game_results.get('B', {}).get('Total Output', 0)
+    game2_B_wip = second_game_results.get('B', {}).get('End WIP', 0)
+    
+    game2_C_cycle_time = second_game_results.get('C', {}).get('Tracked AVG Cycle Time', 0)
+    game2_C_output = second_game_results.get('C', {}).get('Total Output', 0)
+    game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)
+    
+    # Final quiz prioritization
+    third_quiz = st.session_state.get('third_quiz', ['', '', ''])
+    while len(third_quiz) < 3:
+        third_quiz.append('')
+    
+    # Current timestamp
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Insert data into database - explicitly passing each value
+    c.execute('''
+    INSERT INTO user_results (
+        username, timestamp,
+        quiz1_answer1, quiz1_answer2, quiz1_answer3, quiz1_answer4,
+        game1_cycle_time, game1_output, game1_wip,
+        prioritization_A, prioritization_B, prioritization_C,
+        game2_A_cycle_time, game2_A_output, game2_A_wip,
+        game2_B_cycle_time, game2_B_output, game2_B_wip,
+        game2_C_cycle_time, game2_C_output, game2_C_wip,
+        final_prioritization_A, final_prioritization_B, final_prioritization_C
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        username, timestamp,
+        quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
+        game1_cycle_time, game1_output, game1_wip,
+        second_quiz[0], second_quiz[1], second_quiz[2],
+        game2_A_cycle_time, game2_A_output, game2_A_wip,
+        game2_B_cycle_time, game2_B_output, game2_B_wip,
+        game2_C_cycle_time, game2_C_output, game2_C_wip,
+        third_quiz[0], third_quiz[1], third_quiz[2]
+    ))
+    
+    # Commit changes and close connection
+    conn.commit()
+    conn.close()
+    return True
+
 # --- Streamlit UI ---
 
 # Initialize session state variables
@@ -161,7 +339,7 @@ if "show_round_0" not in st.session_state:
     st.session_state.show_round_0 = False
 
 if 'page' not in st.session_state:
-    st.session_state.page = 'welcome'
+    st.session_state.page = 'username_entry'
     st.session_state.quiz_answers = [""]*4
     st.session_state.quiz_submitted = False
     st.session_state.stations = None
@@ -183,6 +361,7 @@ if 'page' not in st.session_state:
     st.session_state.third_quiz = ["", "", ""]
     st.session_state.third_quiz_submitted = False
     st.session_state.dice_range_override = None
+    st.session_state.username = ""
     # Initialize results storage
     st.session_state.original_game_results = {
         "Total Output": 0,
@@ -208,8 +387,24 @@ def reset_game_state():
     st.session_state.tracked_units = {}
     st.session_state.dice_range_override = None
 
+# --- Username Entry Page ---
+if st.session_state.page == 'username_entry':
+    st.title("Semiconductor Manufacturing Chain Simulation")
+    st.markdown("### Welcome! Please enter your username to begin")
+    
+    username = st.text_input("Enter your username:", value=st.session_state.username)
+    
+    if st.button("Start"):
+        if username.strip():
+            st.session_state.username = username.strip()
+            st.session_state.page = 'welcome'
+            st.rerun()
+        else:
+            st.error("Please enter a username to continue.")
+    st.stop()
+
 # --- Welcome Page ---
-if st.session_state.page == 'welcome':
+elif st.session_state.page == 'welcome':
     try:
         st.image("images/factory_bg.jpg", width=900)
     except Exception:
@@ -691,10 +886,8 @@ elif st.session_state.page == 'second_game_round':
                 st.session_state.round_num = 1
                 st.session_state.second_game_round0_done = True
                 st.rerun()
-        st.stop()
-    # Regular rounds (1-20) display for second game
-    # Show the current round number with game title
-    st.markdown("## Second Game")
+        st.stop()    # Regular rounds (1-20) display for second game
+    # Show the current round number
     st.markdown(f"## Round {st.session_state.round_num}")
     st.markdown("### Manufacturing Chain")
 
@@ -742,10 +935,7 @@ elif st.session_state.page == 'second_game_round':
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
         else:
             start_wip_per_step = [4]*NUM_STEPS
-            
-    # Show the current round number
-    st.markdown(f"## Round {st.session_state.round_num}")
-    st.markdown("### Manufacturing Chain")
+              # Removed duplicate round number and title
     floor_cols = st.columns(NUM_STEPS)
     for i, s in enumerate(st.session_state.stations):
         with floor_cols[i]:
@@ -962,4 +1152,38 @@ elif st.session_state.page == 'thank_you':
     st.balloons()
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
+    
+    # Save all data to the database
+    try:
+        save_data_to_database(st.session_state.username)
+        st.success(f"Your game data has been successfully saved with username: {st.session_state.username}")
+    except Exception as e:
+        st.error(f"Error saving data: {str(e)}")
+    
+    # Add an option to see the results    if st.button("View Database Contents"):
+        try:
+            conn = sqlite3.connect('data/game_results.db')
+            results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
+            conn.close()
+            
+            # Reorder columns for better readability (matches the requested order)
+            column_order = [
+                'username', 'timestamp',
+                'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
+                'game1_cycle_time', 'game1_output', 'game1_wip',
+                'prioritization_A', 'prioritization_B', 'prioritization_C',
+                'game2_A_cycle_time', 'game2_A_output', 'game2_A_wip',
+                'game2_B_cycle_time', 'game2_B_output', 'game2_B_wip',
+                'game2_C_cycle_time', 'game2_C_output', 'game2_C_wip',
+                'final_prioritization_A', 'final_prioritization_B', 'final_prioritization_C'
+            ]
+            
+            # Make sure we only include columns that exist in the dataframe
+            valid_columns = [col for col in column_order if col in results_df.columns]
+            
+            # Display the data
+            st.dataframe(results_df[valid_columns])
+        except Exception as e:
+            st.error(f"Error reading database: {str(e)}")
+    
     st.markdown("You may now close this window.")
