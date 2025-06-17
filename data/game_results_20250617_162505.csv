@@ -1,3 +1,0 @@
-username,timestamp,quiz1_answer1,quiz1_answer2,quiz1_answer3,quiz1_answer4,game1_cycle_time,game1_output,game1_wip,prioritization_A,prioritization_B,prioritization_C,game2_A_cycle_time,game2_A_output,game2_A_wip,game2_B_cycle_time,game2_B_output,game2_B_wip,game2_C_cycle_time,game2_C_output,game2_C_wip,final_prioritization_A,final_prioritization_B,final_prioritization_C
-Test,2025-06-17 16:10:33,0,0,0,0,13.722222222222221,54,55,1,2,3,15.473684210526315,55,55,14.523809523809524,57,45,16.5,55,48,1,2,3
-Test2,2025-06-17 16:24:57,0,0,0,0,15.0625,52,53,1,2,3,16.333333333333332,45,74,12.608695652173912,59,42,18.2,55,65,1,2,3
