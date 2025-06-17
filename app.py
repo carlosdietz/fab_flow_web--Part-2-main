@@ -15,7 +15,7 @@ if 'admin' in st.query_params:
     with st.sidebar:
         st.title("Admin Tools")
         st.markdown("### Export Data")
-        if st.button("Export to Excel"):
+        if st.button("Export to Excel", key="admin_sidebar_export"):
             try:
                 if os.path.exists('data/game_results.db'):
                     conn = sqlite3.connect('data/game_results.db')
@@ -404,7 +404,7 @@ if st.session_state.page == 'username_entry':
     
     username = st.text_input("Enter your username:", value=st.session_state.username)
     
-    if st.button("Start"):
+    if st.button("Start", key="username_start"):
         if username.strip():
             st.session_state.username = username.strip()
             st.session_state.page = 'welcome'
@@ -432,7 +432,7 @@ elif st.session_state.page == 'welcome':
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h2 style='color:#388e3c;'>Goal of the Game: Maximize finished goods output & minimize WIP and Cycle Time!</h2>", unsafe_allow_html=True)
-    if st.button("Next"):
+    if st.button("Next", key="welcome_next"):
         st.session_state.page = 'quiz'
         st.rerun()
 
@@ -461,7 +461,7 @@ elif st.session_state.page == 'quiz':
             
     # Show either submit or start game button based on quiz_submitted state
     if not st.session_state.quiz_submitted:
-        if st.button("Submit Quiz"):
+        if st.button("Submit Quiz", key="first_quiz_submit"):
             if all(a.strip() for a in quiz_answers):
                 st.session_state.quiz_submitted = True
                 st.session_state.quiz_answers = quiz_answers
@@ -469,7 +469,7 @@ elif st.session_state.page == 'quiz':
             else:
                 st.warning("Please answer all questions!")
     else:
-        if st.button("Start Game"):
+        if st.button("Start Game", key="first_game_start"):
             st.session_state.stations = initialize_stations(START_WIP)
             st.session_state.round_num = 0
             st.session_state.show_round_0 = True
@@ -693,16 +693,15 @@ elif st.session_state.page in ['initial', 'round']:
     # Next round or end buttons in the right column
     with buttons_col:
         if st.session_state.round_num < NUM_ROUNDS:
-            # Make buttons larger with custom styling
-            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            if st.button("Next Round", use_container_width=True):
+            # Make buttons larger with custom styling            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            if st.button("Next Round", key="main_game_next_round", use_container_width=True):
                 st.session_state.round_num += 1
                 st.session_state.page = 'round'  # <-- Changed to 'round' for main game
                 st.rerun()
             
             rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
             if rounds_to_skip > 0:
-                if st.button(f"Skip {rounds_to_skip} Rounds", use_container_width=True):
+                if st.button(f"Skip {rounds_to_skip} Rounds", key="main_game_skip", use_container_width=True):
                     # Simulate multiple rounds using our helper function
                     simulate_multiple_rounds(rounds_to_skip)
                     st.session_state.page = 'round'  # <-- Changed to 'round' for main game
@@ -731,7 +730,7 @@ elif st.session_state.page == 'end':
     st.warning(f"TOTAL WIP: {total_end_wip} {ICONS['wip']}")
     
     # Always show the Next (Second Quiz) button at the end of the first game
-    if st.button("Next (Second Quiz)"):
+    if st.button("Next (Second Quiz)", key="goto_second_quiz"):
         st.session_state.page = 'second_quiz'
         st.rerun()
 
@@ -746,14 +745,14 @@ elif st.session_state.page == 'second_quiz':
     second_quiz = st.session_state.second_quiz
     for i, opt in enumerate(options):
         second_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(second_quiz[i]), key=f"second_quiz_{i}")
-    if st.button("Submit Priorities"):
+    if st.button("Submit Priorities", key="second_quiz_submit"):
         if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:
             st.session_state.second_quiz_submitted = True
         else:
             st.warning("Please assign unique priorities 1, 2, and 3!")
     if st.session_state.second_quiz_submitted:
         st.success("Priorities submitted!")
-        if st.button("Start Second Game"):
+        if st.button("Start Second Game", key="second_game_start"):
             st.session_state.page = 'second_game'
             st.rerun()
 
@@ -1028,16 +1027,15 @@ elif st.session_state.page == 'second_game_round':
     # Next round or end buttons in the right column
     with buttons_col:
         if st.session_state.round_num < NUM_ROUNDS:
-            # Make buttons larger with custom styling
-            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            if st.button("Next Round", use_container_width=True):
+            # Make buttons larger with custom styling            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            if st.button("Next Round", key="second_game_next_round", use_container_width=True):
                 st.session_state.round_num += 1
                 st.session_state.page = 'second_game_round'
                 st.rerun()
             
             rounds_to_skip = min(5, NUM_ROUNDS - st.session_state.round_num)
             if rounds_to_skip > 0:
-                if st.button(f"Skip {rounds_to_skip} Rounds", use_container_width=True):
+                if st.button(f"Skip {rounds_to_skip} Rounds", key="second_game_skip", use_container_width=True):
                     # Simulate multiple rounds using our helper function
                     simulate_multiple_rounds(rounds_to_skip)
                     st.session_state.page = 'second_game_round'
@@ -1131,7 +1129,7 @@ elif st.session_state.page == 'comparison':
         st.dataframe(df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative"), use_container_width=True)
 
     st.markdown(f"You played: Option {st.session_state.second_game_user_choice}")
-    if st.button("Next (Final Quiz)"):
+    if st.button("Next (Final Quiz)", key="goto_final_quiz"):
         st.session_state.page = 'third_quiz'
         st.rerun()
 
@@ -1146,14 +1144,14 @@ elif st.session_state.page == 'third_quiz':
     third_quiz = st.session_state.third_quiz
     for i, opt in enumerate(options):
         third_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(third_quiz[i]), key=f"third_quiz_{i}")
-    if st.button("Submit Final Priorities"):
+    if st.button("Submit Final Priorities", key="final_quiz_submit"):
         if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:
             st.session_state.third_quiz_submitted = True
         else:
             st.warning("Please assign unique priorities 1, 2, and 3!")
     if st.session_state.third_quiz_submitted:
         st.success("Final priorities submitted!")
-        if st.button("Finish"):
+        if st.button("Finish", key="finish_game"):
             st.session_state.page = 'thank_you'
             st.rerun()
 
@@ -1176,7 +1174,7 @@ elif st.session_state.page == 'thank_you':
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            if st.button("View Database Contents"):
+            if st.button("View Database Contents", key="view_db_contents"):
                 try:
                     conn = sqlite3.connect('data/game_results.db')
                     results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
@@ -1209,7 +1207,7 @@ elif st.session_state.page == 'thank_you':
         with col2:
             # Only show export button after viewing data
             if st.session_state.get('show_export', False):
-                if st.button("Export to Excel"):
+                if st.button("Export to Excel", key="thank_you_export"):
                     try:
                         # Create an Excel file in memory
                         excel_file = BytesIO()
