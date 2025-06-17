@@ -288,7 +288,14 @@ elif st.session_state.page in ['initial', 'round']:
                 st.image("images/dice1.png", width=30)
                 
                 # Initial WIP with small images
-                st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+                if round0_wip[i] == 999:
+                    st.markdown("Initial WIP:")
+                    try:
+                        st.image("infinity.png", width=30)
+                    except Exception:
+                        st.markdown("∞")
+                else:
+                    st.markdown(f"Initial WIP: {round0_wip[i]}")
                 if i != 0 and round0_wip[i] != 999:
                     if round0_wip[i] > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -396,8 +403,7 @@ elif st.session_state.page in ['initial', 'round']:
         total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
         if len(st.session_state.start_wip_history) >= st.session_state.round_num:
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
-        else:
-            start_wip_per_step = [4]*NUM_STEPS
+        else:            start_wip_per_step = [4]*NUM_STEPS
     
     # Show stations as machines with wafers
     st.markdown("### Manufacturing Chain")
@@ -409,17 +415,17 @@ elif st.session_state.page in ['initial', 'round']:
             except Exception:
                 st.warning("Missing image: images/machine.png")
             st.markdown(f"**Step {i+1}**")
-            try:
-                st.image(f"images/dice{dice[i]}.png", width=30)
-            except Exception:
-                st.warning(f"Missing image: images/dice{dice[i]}.png")
             
-            # Available to process WIP (small wafer images in a line)
+            # Start with Start WIP (first value)
             if i == 0:
-                st.markdown(f"Start WIP: ∞")
+                st.markdown(f"**Start WIP:**")
+                try:
+                    st.image("infinity.png", width=30)
+                except Exception:
+                    st.markdown("∞")
             else:
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-                st.markdown(f"Start WIP: {available_wip if available_wip != 999 else '∞'}")
+                st.markdown(f"**Start WIP:** {available_wip if available_wip != 999 else '∞'}")
                 if isinstance(available_wip, int) and available_wip > 0:
                     if available_wip > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -427,16 +433,25 @@ elif st.session_state.page in ['initial', 'round']:
                         wafer_imgs = ["images/wafer_available.png"] * available_wip
                     st.image(wafer_imgs, width=18)
             
-            # End WIP after processing (small wafer_arrived images in a line)
+            # Show dice image (make it bigger)
+            try:
+                st.image(f"images/dice{dice[i]}.png", width=45)
+            except Exception:
+                st.warning(f"Missing image: images/dice{dice[i]}.png")
+            
+            # Add Throughput value
+            st.markdown(f"**Throughput:** {throughputs[i]}")
+            
+            # End WIP after throughput
             if i != 0:
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-                st.markdown(f"End WIP: {end_wip_val if end_wip_val != 999 else '∞'}")
+                st.markdown(f"**End WIP:** {end_wip_val if end_wip_val != 999 else '∞'}")
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
                     if end_wip_val > 17:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
                     else:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * end_wip_val
-                    st.image(wafer_arrived_imgs, width=18)    # KPI Panel
+                    st.image(wafer_arrived_imgs, width=18)# KPI Panel
     st.markdown("---")
     st.markdown("### KPI Panel")
     
@@ -605,12 +620,10 @@ elif st.session_state.page == 'second_game_round':
         settings = {
             "A": {"dice_range": (1, 7), "start_wip": 4},
             "B": {"dice_range": (2, 5), "start_wip": 4},
-            "C": {"dice_range": (1, 6), "start_wip": 5},
-        }
+            "C": {"dice_range": (1, 6), "start_wip": 5},        }
         
         round0_wip = [999] + [settings[top_choice]["start_wip"]]*(NUM_STEPS-1)
         floor_cols = st.columns(NUM_STEPS)
-        
         for i in range(NUM_STEPS):
             with floor_cols[i]:
                 try:
@@ -622,7 +635,14 @@ elif st.session_state.page == 'second_game_round':
                 st.image("images/dice1.png", width=30)
                 
                 # Initial WIP with small images
-                st.markdown(f"Initial WIP: {round0_wip[i] if round0_wip[i] != 999 else '∞'}")
+                if round0_wip[i] == 999:
+                    st.markdown("Initial WIP:")
+                    try:
+                        st.image("infinity.png", width=30)
+                    except Exception:
+                        st.markdown("∞")
+                else:
+                    st.markdown(f"Initial WIP: {round0_wip[i]}")
                 if i != 0 and round0_wip[i] != 999:
                     if round0_wip[i] > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -719,10 +739,8 @@ elif st.session_state.page == 'second_game_round':
         else:
             start_wip_per_step = [4]*NUM_STEPS
             
-    # Show the current round number
-    st.markdown(f"## Round {st.session_state.round_num}")
+    # Show the current round number    st.markdown(f"## Round {st.session_state.round_num}")
     st.markdown("### Manufacturing Chain")
-
     floor_cols = st.columns(NUM_STEPS)
     for i, s in enumerate(st.session_state.stations):
         with floor_cols[i]:
@@ -731,17 +749,17 @@ elif st.session_state.page == 'second_game_round':
             except Exception:
                 st.warning("Missing image: images/machine.png")
             st.markdown(f"**Step {i+1}**")
-            try:
-                st.image(f"images/dice{dice[i]}.png", width=30)
-            except Exception:
-                st.warning(f"Missing image: images/dice{dice[i]}.png")
             
-            # Available to process WIP (small wafer images in a line)
+            # Start with Start WIP (first value)
             if i == 0:
-                st.markdown(f"Start WIP: ∞")
+                st.markdown(f"**Start WIP:**")
+                try:
+                    st.image("infinity.png", width=30)
+                except Exception:
+                    st.markdown("∞")
             else:
                 available_wip = start_wip_per_step[i] if start_wip_per_step[i] != 999 else '∞'
-                st.markdown(f"Start WIP: {available_wip if available_wip != 999 else '∞'}")
+                st.markdown(f"**Start WIP:** {available_wip if available_wip != 999 else '∞'}")
                 if isinstance(available_wip, int) and available_wip > 0:
                     if available_wip > 17:
                         wafer_imgs = ["images/wafer_available.png"] * 17 + ["images/threeDots.png"]
@@ -749,10 +767,19 @@ elif st.session_state.page == 'second_game_round':
                         wafer_imgs = ["images/wafer_available.png"] * available_wip
                     st.image(wafer_imgs, width=18)
             
-            # End WIP after processing (small wafer_arrived images in a line)
+            # Show dice image (make it bigger)
+            try:
+                st.image(f"images/dice{dice[i]}.png", width=45)
+            except Exception:
+                st.warning(f"Missing image: images/dice{dice[i]}.png")
+            
+            # Add Throughput value
+            st.markdown(f"**Throughput:** {throughputs[i]}")
+            
+            # End WIP after throughput
             if i != 0:
                 end_wip_val = s.wip if s.wip != RAW_MATERIAL else 999
-                st.markdown(f"End WIP: {end_wip_val if end_wip_val != 999 else '∞'}")
+                st.markdown(f"**End WIP:** {end_wip_val if end_wip_val != 999 else '∞'}")
                 if isinstance(end_wip_val, int) and end_wip_val > 0:
                     if end_wip_val > 17:
                         wafer_arrived_imgs = ["images/wafer_arrived.png"] * 17 + ["images/threeDots.png"]
