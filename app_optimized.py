@@ -612,6 +612,7 @@ elif st.session_state.page == 'second_game':
 elif st.session_state.page == 'second_game_round':
     # Show Round 0 for second game
     if st.session_state.round_num == 1 and not getattr(st.session_state, "second_game_round0_done", False):
+        st.markdown("## Second Game")
         st.markdown("## Round 0")
         st.markdown("### Manufacturing Chain")
         
@@ -627,12 +628,11 @@ elif st.session_state.page == 'second_game_round':
         for i in range(NUM_STEPS):
             with floor_cols[i]:
                 try:
-                    st.image("images/machine.png", width=60)
+                    st.image("images/machine.png", width=100)
                 except Exception:
                     st.warning("Missing image: images/machine.png")
                 
                 st.markdown(f"**Step {i+1}**")
-                st.image("images/dice1.png", width=30)
                 
                 # Initial WIP with small images
                 if round0_wip[i] == 999:
@@ -685,14 +685,17 @@ elif st.session_state.page == 'second_game_round':
         with buttons_col:
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
             if st.button("Next Round", key="second_game_next_round0_btn", use_container_width=True):
-                # Important: When going from Round 0 to Round 1 in second game
-                # 1. Set round_num to 1
-                # 2. Do NOT reset histories
-                # 3. Create a special flag to indicate we're done with Round 0
-                st.session_state.round_num = 1
+                # Set flag before rerun to prevent both rounds from showing
                 st.session_state.second_game_round0_done = True
                 st.rerun()
+        # Add st.stop() to ensure Round 1 doesn't display simultaneously
         st.stop()
+    
+    # Regular rounds (1-20) display for second game
+    # Show the current round number with game title
+    st.markdown("## Second Game")
+    st.markdown(f"## Round {st.session_state.round_num}")
+    st.markdown("### Manufacturing Chain")
 
     # Process round logic - similar to main game but with user's chosen dice_range
     dice_range = st.session_state.dice_range_override if st.session_state.dice_range_override is not None else DICE_RANGE
@@ -738,14 +741,23 @@ elif st.session_state.page == 'second_game_round':
             start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
         else:
             start_wip_per_step = [4]*NUM_STEPS
-            
-    # Show the current round number    st.markdown(f"## Round {st.session_state.round_num}")
-    st.markdown("### Manufacturing Chain")
+
+    # Always define dice, throughputs, end_wip_per_step, total_end_wip, start_wip_per_step for the UI below
+    if len(st.session_state.dice_history) >= st.session_state.round_num:
+        dice = st.session_state.dice_history[st.session_state.round_num-1]
+        throughputs = st.session_state.throughputs_history[st.session_state.round_num-1]
+        end_wip_per_step = st.session_state.end_wip_history[st.session_state.round_num-1]
+        total_end_wip = st.session_state.total_end_wip_history[st.session_state.round_num-1]
+        if len(st.session_state.start_wip_history) >= st.session_state.round_num:
+            start_wip_per_step = st.session_state.start_wip_history[st.session_state.round_num-1]
+        else:            start_wip_per_step = [4]*NUM_STEPS
+    
+    # Show stations as machines with wafers
     floor_cols = st.columns(NUM_STEPS)
     for i, s in enumerate(st.session_state.stations):
         with floor_cols[i]:
             try:
-                st.image("images/machine.png", width=60)
+                st.image("images/machine.png", width=100)
             except Exception:
                 st.warning("Missing image: images/machine.png")
             st.markdown(f"**Step {i+1}**")
