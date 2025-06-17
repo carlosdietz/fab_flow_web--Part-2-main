@@ -5,6 +5,8 @@ import pandas as pd
 import sqlite3
 import os
 import datetime
+from io import BytesIO
+from io import BytesIO
 
 st.set_page_config(page_title="Dice Game - Semiconductor Manufacturing Chain", layout="wide")
 
@@ -13,7 +15,7 @@ if 'admin' in st.query_params:
     with st.sidebar:
         st.title("Admin Tools")
         st.markdown("### Export Data")
-        if st.button("Export to CSV"):
+        if st.button("Export to Excel"):
             try:
                 if os.path.exists('data/game_results.db'):
                     conn = sqlite3.connect('data/game_results.db')
@@ -40,23 +42,31 @@ if 'admin' in st.query_params:
                         if col not in valid_columns and col != 'id':
                             valid_columns.append(col)
                     
-                    # Export to CSV with ordered columns
-                    csv_filename = f"game_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    results_df[valid_columns].to_csv(f"data/{csv_filename}", index=False)
+                    # Select just the columns we want in the right order
+                    ordered_df = results_df[valid_columns]
                     
-                    st.success(f"Data exported to data/{csv_filename}")
+                    # Create an Excel file in memory
+                    excel_file = BytesIO()
+                    ordered_df.to_excel(excel_file, index=False, engine='openpyxl')
+                    excel_file.seek(0)
                     
-                    # Also show a preview
-                    st.dataframe(results_df[valid_columns].head())
+                    # Create a timestamp for the filename
+                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                    excel_filename = f"fab_flow_results_{timestamp}.xlsx"
                     
-                    # Create download link
-                    with open(f"data/{csv_filename}", "rb") as file:
-                        st.download_button(
-                            label="Download CSV File",
-                            data=file,
-                            file_name=csv_filename,
-                            mime="text/csv"
-                        )
+                    st.success(f"Data exported as Excel file")
+                    
+                    # Show a preview of the data
+                    st.write("### Data Preview")
+                    st.dataframe(ordered_df.head())
+                    
+                    # Provide download button for the Excel file
+                    st.download_button(
+                        label="📥 Download Excel File",
+                        data=excel_file,
+                        file_name=excel_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
                 else:
                     st.warning("No database file found. Run the game first to generate data.")
             except Exception as e:
@@ -1152,38 +1162,70 @@ elif st.session_state.page == 'thank_you':
     st.balloons()
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
-    
-    # Save all data to the database
+      # Save all data to the database
     try:
         save_data_to_database(st.session_state.username)
         st.success(f"Your game data has been successfully saved with username: {st.session_state.username}")
     except Exception as e:
         st.error(f"Error saving data: {str(e)}")
     
-    # Add an option to see the results    if st.button("View Database Contents"):
-        try:
-            conn = sqlite3.connect('data/game_results.db')
-            results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
-            conn.close()
-            
-            # Reorder columns for better readability (matches the requested order)
-            column_order = [
-                'username', 'timestamp',
-                'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
-                'game1_cycle_time', 'game1_output', 'game1_wip',
-                'prioritization_A', 'prioritization_B', 'prioritization_C',
-                'game2_A_cycle_time', 'game2_A_output', 'game2_A_wip',
-                'game2_B_cycle_time', 'game2_B_output', 'game2_B_wip',
-                'game2_C_cycle_time', 'game2_C_output', 'game2_C_wip',
-                'final_prioritization_A', 'final_prioritization_B', 'final_prioritization_C'
-            ]
-            
-            # Make sure we only include columns that exist in the dataframe
-            valid_columns = [col for col in column_order if col in results_df.columns]
-            
-            # Display the data
-            st.dataframe(results_df[valid_columns])
-        except Exception as e:
-            st.error(f"Error reading database: {str(e)}")
+    # Add an option to see the results
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("View Database Contents"):
+            try:
+                conn = sqlite3.connect('data/game_results.db')
+                results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
+                conn.close()
+                
+                # Reorder columns for better readability (matches the requested order)
+                column_order = [
+                    'username', 'timestamp',
+                    'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
+                    'game1_cycle_time', 'game1_output', 'game1_wip',
+                    'prioritization_A', 'prioritization_B', 'prioritization_C',
+                    'game2_A_cycle_time', 'game2_A_output', 'game2_A_wip',
+                    'game2_B_cycle_time', 'game2_B_output', 'game2_B_wip',
+                    'game2_C_cycle_time', 'game2_C_output', 'game2_C_wip',
+                    'final_prioritization_A', 'final_prioritization_B', 'final_prioritization_C'
+                ]
+                
+                # Make sure we only include columns that exist in the dataframe
+                valid_columns = [col for col in column_order if col in results_df.columns]
+                
+                # Display the data
+                st.dataframe(results_df[valid_columns])
+                
+                # Store in session state for export button
+                st.session_state.results_df = results_df[valid_columns]
+                st.session_state.show_export = True
+            except Exception as e:
+                st.error(f"Error reading database: {str(e)}")
+    
+    with col2:
+        # Only show export button after viewing data
+        if st.session_state.get('show_export', False):
+            if st.button("Export to Excel"):
+                try:
+                    # Create an Excel file in memory
+                    excel_file = BytesIO()
+                    st.session_state.results_df.to_excel(excel_file, index=False, engine='openpyxl')
+                    excel_file.seek(0)
+                    
+                    # Create a timestamp for the filename
+                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                    excel_filename = f"fab_flow_results_{timestamp}.xlsx"
+                    
+                    # Provide download button
+                    st.download_button(
+                        label="📥 Download Excel File",
+                        data=excel_file,
+                        file_name=excel_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e:
+                    st.error(f"Error exporting to Excel: {str(e)}")
     
     st.markdown("You may now close this window.")
+
+# Excel export functionality has been integrated directly into the sidebar and thank you page
