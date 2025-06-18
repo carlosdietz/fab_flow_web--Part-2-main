@@ -14,6 +14,8 @@ st.set_page_config(page_title="Fab Flow Game - Semiconductor Manufacturing Chain
 if 'admin' in st.query_params:
     with st.sidebar:
         st.title("Admin Tools")
+        
+        # EXPORT DATA SECTION
         st.markdown("### Export Data")
         if st.button("Export to Excel", key="admin_sidebar_export"):
             try:
@@ -72,18 +74,136 @@ if 'admin' in st.query_params:
             except Exception as e:
                 st.error(f"Error exporting data: {str(e)}")
         
+        # DATABASE MANAGEMENT SECTION
         st.markdown("### Database Management")
+        st.info("To fix database errors, close all browser tabs running this app, then click the button below.")
+        
         if st.button("Rebuild Database Schema", key="admin_rebuild_db"):
             try:
-                # Delete existing database
+                # Let's take a safer approach - backup and recreate instead of deleting
                 db_path = 'data/game_results.db'
+                backup_data = None                # Check if we can access the database
                 if os.path.exists(db_path):
-                    os.remove(db_path)
-                    st.success("Existing database removed.")
-                
-                # Create new database with correct schema
-                conn = sqlite3.connect(db_path)
-                c = conn.cursor()
+                    st.info("Attempting to rebuild the database schema. This will fix any 'missing column' errors.")
+                    
+                    # Create a new SQLite database with _new suffix to avoid conflicts
+                    temp_db_path = 'data/game_results_new.db'
+                    continue_operation = True
+                    
+                    # Remove any existing temporary database
+                    if os.path.exists(temp_db_path):
+                        try:
+                            os.remove(temp_db_path)
+                        except Exception:
+                            st.error("Could not remove temporary database file. Please close all applications and try again.")
+                            continue_operation = False
+                    
+                    # Create a new database with the correct schema
+                    new_conn = sqlite3.connect(temp_db_path)                    # Only proceed if we were able to remove the temporary file or it didn't exist
+                    if continue_operation:
+                        try:
+                            # Create a new database connection
+                            new_conn = sqlite3.connect(temp_db_path)
+                            c = new_conn.cursor()
+                            
+                            # Create the new table with the correct schema
+                            c.execute('''
+                            CREATE TABLE IF NOT EXISTS user_results (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                username TEXT,
+                                timestamp TEXT,
+                                completion_status TEXT,
+                                quiz1_answer1 TEXT,
+                                quiz1_answer2 TEXT,
+                                quiz1_answer3 TEXT,
+                                quiz1_answer4 TEXT,
+                                game1_cycle_time REAL,
+                                game1_output INTEGER,
+                                game1_wip INTEGER,
+                                prioritization_A TEXT,
+                                prioritization_B TEXT,
+                                prioritization_C TEXT,
+                                game2_A_cycle_time REAL,
+                                game2_A_output INTEGER,
+                                game2_A_wip INTEGER,
+                                game2_B_cycle_time REAL,
+                                game2_B_output INTEGER,
+                                game2_B_wip INTEGER,
+                                game2_C_cycle_time REAL,
+                                game2_C_output INTEGER,
+                                game2_C_wip INTEGER,
+                                final_prioritization_A TEXT,
+                                final_prioritization_B TEXT,
+                                final_prioritization_C TEXT
+                            )
+                            ''')
+                            new_conn.commit()
+                            
+                            # Try to copy data from the old database if possible
+                            try:
+                                old_conn = sqlite3.connect(db_path)
+                                old_cursor = old_conn.cursor()
+                                
+                                # Check if the user_results table exists in the old database
+                                old_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_results'")
+                                if old_cursor.fetchone():
+                                    # Get column names from the old table
+                                    old_cursor.execute("PRAGMA table_info(user_results)")
+                                    old_columns = [col[1] for col in old_cursor.fetchall()]
+                                    
+                                    # Get column names from the new table
+                                    c.execute("PRAGMA table_info(user_results)")
+                                    new_columns = [col[1] for col in c.fetchall()]
+                                    
+                                    # Find common columns
+                                    common_columns = [col for col in old_columns if col in new_columns]
+                                    
+                                    if common_columns:
+                                        # Select data from old table
+                                        old_cursor.execute(f"SELECT {', '.join(common_columns)} FROM user_results")
+                                        rows = old_cursor.fetchall()
+                                        
+                                        if rows:
+                                            # Insert data into new table
+                                            placeholders = ', '.join(['?' for _ in common_columns])
+                                            c.executemany(
+                                                f"INSERT INTO user_results ({', '.join(common_columns)}) VALUES ({placeholders})", 
+                                                rows
+                                            )
+                                            new_conn.commit()
+                                            st.info(f"Successfully migrated {len(rows)} records to the new database.")
+                                
+                                old_conn.close()
+                            except Exception as e:
+                                st.warning(f"Could not migrate data: {str(e)}")
+                            
+                            # Close the new database connection
+                            new_conn.close()
+                            
+                            # Try to rename the files
+                            try:
+                                # If the original file exists, rename it as backup
+                                if os.path.exists(db_path):
+                                    backup_path = 'data/game_results_backup.db'
+                                    # Remove any existing backup
+                                    if os.path.exists(backup_path):
+                                        os.remove(backup_path)
+                                    os.rename(db_path, backup_path)
+                                    
+                                # Rename the new database to the original name
+                                os.rename(temp_db_path, db_path)
+                                st.success("Database schema rebuilt successfully!")
+                            except Exception as e:
+                                st.error(f"Could not replace the database file: {str(e)}")
+                                st.info("The new database has been created as 'game_results_new.db'. To use it, please manually rename it.")
+                        except Exception as e:
+                            st.error(f"Error creating new database: {str(e)}")
+                    else:
+                        st.warning("Database rebuild operation cancelled due to errors.")
+                else:
+                    # If no database exists yet, just create a new one
+                    conn = sqlite3.connect(db_path)
+                    c = conn.cursor()
                 c.execute('''
                 CREATE TABLE IF NOT EXISTS user_results (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,9 +437,8 @@ def save_data_to_database(username):
         
         db_path = 'data/game_results.db'
         db_exists = os.path.exists(db_path)
-        
-        # Connect to SQLite database
-        conn = sqlite3.connect(db_path)
+          # Connect to SQLite database using our helper
+        conn = get_db_connection()
         c = conn.cursor()
         
         # Check if the table exists and has the correct schema
@@ -444,41 +563,142 @@ def save_data_to_database(username):
         
         game2_C_cycle_time = second_game_results.get('C', {}).get('Tracked AVG Cycle Time', 0)
         game2_C_output = second_game_results.get('C', {}).get('Total Output', 0)
-        game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)
+        game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)        # Second quiz prioritization - ensure it's properly captured
+        second_quiz = st.session_state.get('second_quiz', ['', '', ''])
         
-        # Final quiz prioritization
+        # Try to get values directly from session state first (most reliable)
+        prioritization_A = st.session_state.get('prioritization_A', '')
+        prioritization_B = st.session_state.get('prioritization_B', '') 
+        prioritization_C = st.session_state.get('prioritization_C', '')
+        
+        # Fall back to array if direct values aren't available
+        if not prioritization_A and len(second_quiz) > 0:
+            prioritization_A = second_quiz[0]
+        if not prioritization_B and len(second_quiz) > 1:
+            prioritization_B = second_quiz[1]
+        if not prioritization_C and len(second_quiz) > 2:
+            prioritization_C = second_quiz[2]
+              # Values captured for database storage
+        
+        while len(second_quiz) < 3:
+            second_quiz.append('')
+          # Final quiz prioritization - handle the same way
         third_quiz = st.session_state.get('third_quiz', ['', '', ''])
+        
+        # Try multiple ways to get the values to ensure we capture them
+        # First check direct session state variables (most reliable)
+        final_prioritization_A = st.session_state.get('final_prioritization_A', '')
+        final_prioritization_B = st.session_state.get('final_prioritization_B', '')
+        final_prioritization_C = st.session_state.get('final_prioritization_C', '')
+        
+        # If direct values aren't available, check the third_quiz array
+        if not final_prioritization_A and len(third_quiz) > 0:
+            final_prioritization_A = third_quiz[0]
+        if not final_prioritization_B and len(third_quiz) > 1:
+            final_prioritization_B = third_quiz[1]
+        if not final_prioritization_C and len(third_quiz) > 2:
+            final_prioritization_C = third_quiz[2]
+            
+        # Special handling for the thank you page
+        if st.session_state.page == 'thank_you':
+            # Grab final values from the debug display if available
+            try:
+                if hasattr(st.session_state, '_final_debug_A') and not final_prioritization_A:
+                    final_prioritization_A = st.session_state._final_debug_A
+                if hasattr(st.session_state, '_final_debug_B') and not final_prioritization_B:
+                    final_prioritization_B = st.session_state._final_debug_B
+                if hasattr(st.session_state, '_final_debug_C') and not final_prioritization_C:
+                    final_prioritization_C = st.session_state._final_debug_C
+            except:
+                pass
+          # Final values captured for database storage
+        
+        # Ensure the session state reflects these values for future reference
+        if final_prioritization_A:
+            st.session_state['final_prioritization_A'] = final_prioritization_A
+        if final_prioritization_B:
+            st.session_state['final_prioritization_B'] = final_prioritization_B
+        if final_prioritization_C:
+            st.session_state['final_prioritization_C'] = final_prioritization_C
+            
         while len(third_quiz) < 3:
             third_quiz.append('')
         
         # Current timestamp
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Determine completion status
+          # Determine completion status
         completion_status = "complete" if st.session_state.page == 'thank_you' else st.session_state.get('game_completion', 'partial')
         
-        # Insert data into database
-        c.execute('''
-        INSERT INTO user_results (
-            username, timestamp, completion_status,
-            quiz1_answer1, quiz1_answer2, quiz1_answer3, quiz1_answer4,
+        # Current timestamp
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Check if this user already has an entry in the database
+        c.execute("SELECT rowid, completion_status FROM user_results WHERE username = ? ORDER BY timestamp DESC LIMIT 1", (username,))
+        existing_entry = c.fetchone()
+        
+        # Data values to save
+        data_values = (
+            timestamp, completion_status,
+            quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
             game1_cycle_time, game1_output, game1_wip,
             prioritization_A, prioritization_B, prioritization_C,
             game2_A_cycle_time, game2_A_output, game2_A_wip,
             game2_B_cycle_time, game2_B_output, game2_B_wip,
             game2_C_cycle_time, game2_C_output, game2_C_wip,
-            final_prioritization_A, final_prioritization_B, final_prioritization_C
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            username, timestamp, completion_status,
-            quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
-            game1_cycle_time, game1_output, game1_wip,
-            second_quiz[0], second_quiz[1], second_quiz[2],
-            game2_A_cycle_time, game2_A_output, game2_A_wip,
-            game2_B_cycle_time, game2_B_output, game2_B_wip,
-            game2_C_cycle_time, game2_C_output, game2_C_wip,
-            third_quiz[0], third_quiz[1], third_quiz[2]
-        ))
+            final_prioritization_A, final_prioritization_B, final_prioritization_C,
+            username  # Username at the end for the WHERE clause in UPDATE
+        )
+        
+        if existing_entry:
+            # User exists in database, update the entry instead of creating a new one
+            row_id, existing_status = existing_entry
+            
+            # Don't overwrite a complete entry with a partial one
+            if existing_status == "complete" and completion_status != "complete":
+                # Skip saving to avoid overwriting complete data
+                return True
+                
+            # Update existing entry in the database
+            
+            # Update the existing entry
+            c.execute('''
+            UPDATE user_results SET 
+                timestamp = ?, completion_status = ?,
+                quiz1_answer1 = ?, quiz1_answer2 = ?, quiz1_answer3 = ?, quiz1_answer4 = ?,
+                game1_cycle_time = ?, game1_output = ?, game1_wip = ?,
+                prioritization_A = ?, prioritization_B = ?, prioritization_C = ?,
+                game2_A_cycle_time = ?, game2_A_output = ?, game2_A_wip = ?,
+                game2_B_cycle_time = ?, game2_B_output = ?, game2_B_wip = ?,
+                game2_C_cycle_time = ?, game2_C_output = ?, game2_C_wip = ?,
+                final_prioritization_A = ?, final_prioritization_B = ?, final_prioritization_C = ?
+            WHERE username = ?
+            ''', data_values)
+        else:
+            # No existing entry, create a new one
+            # Create new entry in the database
+            
+            # Insert data into database
+            c.execute('''
+            INSERT INTO user_results (
+                username, timestamp, completion_status,
+                quiz1_answer1, quiz1_answer2, quiz1_answer3, quiz1_answer4,
+                game1_cycle_time, game1_output, game1_wip,
+                prioritization_A, prioritization_B, prioritization_C,
+                game2_A_cycle_time, game2_A_output, game2_A_wip,
+                game2_B_cycle_time, game2_B_output, game2_B_wip,
+                game2_C_cycle_time, game2_C_output, game2_C_wip,
+                final_prioritization_A, final_prioritization_B, final_prioritization_C
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                username, timestamp, completion_status,
+                quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
+                game1_cycle_time, game1_output, game1_wip,
+                prioritization_A, prioritization_B, prioritization_C,
+                game2_A_cycle_time, game2_A_output, game2_A_wip,
+                game2_B_cycle_time, game2_B_output, game2_B_wip,
+                game2_C_cycle_time, game2_C_output, game2_C_wip,
+                final_prioritization_A, final_prioritization_B, final_prioritization_C
+            ))
         
         # Commit changes and close connection
         conn.commit()
@@ -495,21 +715,47 @@ def save_data_to_database(username):
 def save_data_at_key_points():
     """
     Saves a snapshot of current data to the database at key points in the game,
-    even if the user doesn't reach the final thank you page
+    even if the user doesn't reach the final thank you page.
+    Only saves if no complete data exists for this user.
     """
-    if (not st.session_state.get('data_saved', False) and 
-        st.session_state.get('username', '') and 
+    if (st.session_state.get('username', '') and 
         (st.session_state.page in ['end', 'second_game', 'second_game_end', 'third_quiz'])):
         
         try:
-            # Add a temporary flag to mark this as an intermediate save
-            st.session_state['intermediate_save'] = True
-            st.session_state['game_completion'] = st.session_state.page
-            save_data_to_database(st.session_state.username)
-            # Remove the flag after saving
-            st.session_state.pop('intermediate_save', None)
+            # Check if user already has complete data
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT completion_status FROM user_results WHERE username = ? AND completion_status = 'complete'", 
+                      (st.session_state.username,))
+            complete_entry = c.fetchone()
+            conn.close()
+            
+            # Only save if no complete entry exists
+            if not complete_entry:
+                # Add a temporary flag to mark this as an intermediate save
+                st.session_state['intermediate_save'] = True
+                st.session_state['game_completion'] = st.session_state.page
+                save_data_to_database(st.session_state.username)
+                # Remove the flag after saving
+                st.session_state.pop('intermediate_save', None)
+            else:
+                # Skip intermediate save since complete data exists
+                pass
         except Exception as e:
-            print(f"Error in intermediate save: {str(e)}")
+            # Silent error handling to avoid disrupting user experience
+            pass
+
+def get_db_connection():
+    """Helper function to create a connection to the SQLite database"""
+    # Ensure data directory exists
+    os.makedirs('data', exist_ok=True)
+    
+    # Get absolute path to database
+    db_path = 'data/game_results.db'
+    
+    # Connect to database
+    conn = sqlite3.connect(db_path)
+    return conn
 
 # --- Streamlit UI ---
 
@@ -535,10 +781,17 @@ if 'page' not in st.session_state:
     st.session_state.tracked_units = {}
     st.session_state.second_quiz = ["", "", ""]
     st.session_state.second_quiz_submitted = False
+    st.session_state.prioritization_A = ""
+    st.session_state.prioritization_B = ""
+    st.session_state.prioritization_C = ""
     st.session_state.second_game_results = {}
     st.session_state.second_game_user_choice = None
     st.session_state.third_quiz = ["", "", ""]
     st.session_state.third_quiz_submitted = False
+    st.session_state.final_prioritization_A = ""
+    st.session_state.final_prioritization_B = ""
+    st.session_state.final_prioritization_C = ""
+    st.session_state.final_quiz_needs_save = False
     st.session_state.dice_range_override = None
     st.session_state.username = ""
     st.session_state.data_saved = False  # Flag to track if data has been saved to prevent duplicates
@@ -919,8 +1172,29 @@ elif st.session_state.page == 'second_quiz':
     second_quiz = st.session_state.second_quiz
     for i, opt in enumerate(options):
         second_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(second_quiz[i]), key=f"second_quiz_{i}")
+        # Update session state immediately 
+        st.session_state.second_quiz[i] = second_quiz[i]
+        
     if st.button("Submit Priorities", key="second_quiz_submit"):
-        if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:            st.session_state.second_quiz_submitted = True
+        if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:
+            # Explicitly update session state with the selections
+            st.session_state.second_quiz = second_quiz.copy()
+            # Store individual values for more reliable database saving
+            st.session_state['prioritization_A'] = second_quiz[0]
+            st.session_state['prioritization_B'] = second_quiz[1]
+            st.session_state['prioritization_C'] = second_quiz[2]
+            # Mark as submitted
+            st.session_state.second_quiz_submitted = True
+            
+            # Show confirmation
+            st.info(f"Your priorities have been saved: A={second_quiz[0]}, B={second_quiz[1]}, C={second_quiz[2]}")
+            
+            # Perform an intermediate save 
+            try:
+                st.session_state['game_completion'] = 'second_quiz_completed'
+                save_data_to_database(st.session_state.username)
+            except Exception as e:
+                st.error(f"Error saving interim data: {str(e)}")
         else:
             st.warning("Please assign unique priorities 1, 2, and 3!")
             
@@ -1203,7 +1477,8 @@ elif st.session_state.page == 'second_game_round':
     # Next round or end buttons in the right column
     with buttons_col:
         if st.session_state.round_num < NUM_ROUNDS:
-            # Make buttons larger with custom styling            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            # Make buttons larger with custom styling
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
             if st.button("Next Round", key="second_game_next_round", use_container_width=True):
                 st.session_state.round_num += 1
                 st.session_state.page = 'second_game_round'
@@ -1319,18 +1594,54 @@ elif st.session_state.page == 'third_quiz':
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
         "C) Increase Start WIP at each step to 5"
     ]
+    
     third_quiz = st.session_state.third_quiz
     for i, opt in enumerate(options):
         third_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(third_quiz[i]), key=f"third_quiz_{i}")
+        # Update session state immediately when selection changes
+        st.session_state.third_quiz[i] = third_quiz[i]
+    
+    # Submit button
     if st.button("Submit Final Priorities", key="final_quiz_submit"):
-        if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:            st.session_state.third_quiz_submitted = True
-        else:
-            st.warning("Please assign unique priorities 1, 2, and 3!")
+        if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:
+            # Store the values explicitly in session state to ensure they're saved
+            st.session_state.third_quiz = third_quiz.copy()
+            st.session_state.third_quiz_submitted = True
+              # Store final prioritizations directly in the session state using multiple approaches for redundancy
+            st.session_state['final_prioritization_A'] = third_quiz[0]
+            st.session_state['final_prioritization_B'] = third_quiz[1]
+            st.session_state['final_prioritization_C'] = third_quiz[2]
+            
+            # Also store in special debug variables that won't be overwritten
+            st.session_state['_final_debug_A'] = third_quiz[0] 
+            st.session_state['_final_debug_B'] = third_quiz[1]
+            st.session_state['_final_debug_C'] = third_quiz[2]
+            
+            # Show the values to confirm they're stored properly
+            st.info(f"Your priorities have been saved: A={third_quiz[0]}, B={third_quiz[1]}, C={third_quiz[2]}")
+            
+            # Perform an intermediate save to make sure the data is captured
+            if not st.session_state.get('data_saved', False):
+                try:
+                    # Add a temporary flag to mark this as an intermediate save
+                    st.session_state['game_completion'] = 'third_quiz_completed'
+                    save_data_to_database(st.session_state.username)
+                    # Don't mark as fully saved yet
+                except Exception as e:
+                    st.error(f"Error saving interim data: {str(e)}")
+        else:            st.warning("Please assign unique priorities 1, 2, and 3!")
             
     if st.session_state.third_quiz_submitted:
         st.success("Final priorities submitted!")
         if st.button("Finish", key="finish_game"):
-            # No need for intermediate save here as the thank_you page will do the final save
+            # Set completion status to ensure all data is saved
+            st.session_state['game_completion'] = 'complete'
+            
+            # Explicitly mark that final values need to be saved (even if we did an intermediate save)
+            st.session_state['final_quiz_needs_save'] = True
+              # Ensure values are saved when moving to thank you page
+            
+            # Move to the thank you page
             st.session_state.page = 'thank_you'
             st.rerun()
 
@@ -1340,16 +1651,58 @@ elif st.session_state.page == 'thank_you':
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
     
-    # Save all data to the database only if not saved yet
-    if not st.session_state.get('data_saved', False):
-        try:
+    # Debug info to verify all quiz values
+    st.markdown("### Debug Info")
+    
+    # Show initial prioritization values
+    prio_A = st.session_state.get('prioritization_A', st.session_state.second_quiz[0] if len(st.session_state.second_quiz) > 0 else '')
+    prio_B = st.session_state.get('prioritization_B', st.session_state.second_quiz[1] if len(st.session_state.second_quiz) > 1 else '')
+    prio_C = st.session_state.get('prioritization_C', st.session_state.second_quiz[2] if len(st.session_state.second_quiz) > 2 else '')
+    st.write(f"Initial prioritization values: A={prio_A}, B={prio_B}, C={prio_C}")
+    
+    # Show final prioritization values
+    final_A = st.session_state.get('final_prioritization_A', st.session_state.third_quiz[0] if len(st.session_state.third_quiz) > 0 else '')
+    final_B = st.session_state.get('final_prioritization_B', st.session_state.third_quiz[1] if len(st.session_state.third_quiz) > 1 else '')
+    final_C = st.session_state.get('final_prioritization_C', st.session_state.third_quiz[2] if len(st.session_state.third_quiz) > 2 else '')
+    st.write(f"Final prioritization values: A={final_A}, B={final_B}, C={final_C}")
+    
+    # Save data to database
+    try:
+        # First check if user already has a complete record
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT completion_status FROM user_results WHERE username = ? AND completion_status = 'complete'", 
+                 (st.session_state.username,))
+        complete_entry = c.fetchone()
+        conn.close()
+        
+        # Only save if needed
+        force_save = (st.session_state.get('final_quiz_needs_save', False) or 
+                     not st.session_state.get('data_saved', False) or 
+                     not complete_entry)
+        
+        if force_save:
+            # Ensure the game completion status is set to complete
+            st.session_state['game_completion'] = 'complete'
+            
+            # Make sure the final prioritization values are explicitly set in session state
+            if not st.session_state.get('final_prioritization_A', ''):
+                st.session_state['final_prioritization_A'] = final_A
+            if not st.session_state.get('final_prioritization_B', ''):
+                st.session_state['final_prioritization_B'] = final_B
+            if not st.session_state.get('final_prioritization_C', ''):
+                st.session_state['final_prioritization_C'] = final_C
+            
+            # Save to database with complete status
             save_data_to_database(st.session_state.username)
             st.success(f"Your game data has been successfully saved with username: {st.session_state.username}")
+            st.session_state.data_saved = True  # Mark as successfully saved
+            st.session_state.final_quiz_needs_save = False  # Reset flag
+        else:
+            st.success(f"Your complete data was previously saved with username: {st.session_state.username}")
             st.session_state.data_saved = True  # Mark as saved
-        except Exception as e:
-            st.error(f"Error saving data: {str(e)}")
-    else:
-        st.success(f"Your game data was previously saved with username: {st.session_state.username}")
+    except Exception as e:
+        st.error(f"Error saving data: {str(e)}")
     
     # Only show database viewing/export options for admin users
     if 'admin' in st.query_params:
@@ -1411,5 +1764,3 @@ elif st.session_state.page == 'thank_you':
                         st.error(f"Error exporting to Excel: {str(e)}")
     
     st.markdown("You may now close this window.")
-
-# Excel export functionality has been integrated directly into the sidebar and thank you page
