@@ -8,7 +8,7 @@ import datetime
 from io import BytesIO
 from io import BytesIO
 
-st.set_page_config(page_title="Dice Game - Semiconductor Manufacturing Chain", layout="wide")
+st.set_page_config(page_title="Fab Flow Game - Semiconductor Manufacturing Chain", layout="wide")
 
 # Admin sidebar for data export - only visible if 'admin' query parameter is present
 if 'admin' in st.query_params:
@@ -22,9 +22,9 @@ if 'admin' in st.query_params:
                     results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
                     conn.close()
                     
-                    # Reorder columns for better readability (matches the requested order)
+                    # Reorder columns for better readability
                     column_order = [
-                        'username', 'timestamp',
+                        'username', 'timestamp', 'completion_status',
                         'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
                         'game1_cycle_time', 'game1_output', 'game1_wip',
                         'prioritization_A', 'prioritization_B', 'prioritization_C',
@@ -54,7 +54,7 @@ if 'admin' in st.query_params:
                     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
                     excel_filename = f"fab_flow_results_{timestamp}.xlsx"
                     
-                    st.success(f"Data exported as Excel file")
+                    st.success("Data exported as Excel file")
                     
                     # Show a preview of the data
                     st.write("### Data Preview")
@@ -72,37 +72,79 @@ if 'admin' in st.query_params:
             except Exception as e:
                 st.error(f"Error exporting data: {str(e)}")
         
-        # Add database management options
         st.markdown("### Database Management")
-        
-        # Add a delete button with confirmation
-        delete_col1, delete_col2 = st.columns(2)
-        
-        with delete_col1:
-            if st.button("Delete All Data", key="delete_all_data"):
-                st.session_state.confirm_delete = True
+        if st.button("Rebuild Database Schema", key="admin_rebuild_db"):
+            try:
+                # Delete existing database
+                db_path = 'data/game_results.db'
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+                    st.success("Existing database removed.")
                 
-        with delete_col2:
-            if st.session_state.get('confirm_delete', False):
-                if st.button("⚠️ Confirm Delete", key="confirm_delete_all_data"):
-                    try:
-                        if os.path.exists('data/game_results.db'):
-                            conn = sqlite3.connect('data/game_results.db')
-                            c = conn.cursor()
-                            c.execute("DELETE FROM user_results")
-                            conn.commit()
-                            conn.close()
-                            st.success("All data has been deleted!")
-                            st.session_state.confirm_delete = False
-                            # Reset the session state data_saved flag for the current session
-                            st.session_state.data_saved = False
-                        else:
-                            st.warning("No database file found.")
-                    except Exception as e:
-                        st.error(f"Error deleting data: {str(e)}")
-                        
-                if st.button("Cancel", key="cancel_delete"):
-                    st.session_state.confirm_delete = False
+                # Create new database with correct schema
+                conn = sqlite3.connect(db_path)
+                c = conn.cursor()
+                c.execute('''
+                CREATE TABLE IF NOT EXISTS user_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT,
+                    timestamp TEXT,
+                    completion_status TEXT,
+                    
+                    quiz1_answer1 TEXT,
+                    quiz1_answer2 TEXT,
+                    quiz1_answer3 TEXT,
+                    quiz1_answer4 TEXT,
+                    
+                    game1_cycle_time REAL,
+                    game1_output INTEGER,
+                    game1_wip INTEGER,
+                    
+                    prioritization_A TEXT,
+                    prioritization_B TEXT,
+                    prioritization_C TEXT,
+                    
+                    game2_A_cycle_time REAL,
+                    game2_A_output INTEGER,
+                    game2_A_wip INTEGER,
+                    
+                    game2_B_cycle_time REAL,
+                    game2_B_output INTEGER,
+                    game2_B_wip INTEGER,
+                    
+                    game2_C_cycle_time REAL,
+                    game2_C_output INTEGER,
+                    game2_C_wip INTEGER,
+                    
+                    final_prioritization_A TEXT,
+                    final_prioritization_B TEXT,
+                    final_prioritization_C TEXT
+                )
+                ''')
+                conn.commit()
+                conn.close()
+                st.success("Database schema rebuilt successfully!")
+            except Exception as e:
+                st.error(f"Error rebuilding database: {str(e)}")
+        
+        # Add a button to delete all data
+        if st.button("Delete All Data", key="admin_delete_data", type="primary", help="WARNING: This will delete all saved game data!"):
+            try:
+                # Connect to the database
+                db_path = 'data/game_results.db'
+                if os.path.exists(db_path):
+                    conn = sqlite3.connect(db_path)
+                    c = conn.cursor()
+                    
+                    # Delete all data but keep the table structure
+                    c.execute("DELETE FROM user_results")
+                    conn.commit()
+                    conn.close()
+                    st.success("All data has been deleted successfully!")
+                else:
+                    st.warning("No database found. Nothing to delete.")
+            except Exception as e:
+                st.error(f"Error deleting data: {str(e)}")
 
 # --- Backend logic ---
 NUM_STEPS = 10
@@ -258,124 +300,216 @@ def save_data_to_database(username):
     Saves all user data to SQLite database including quiz answers and game results.
     Returns True if data was saved, False if data for this username+timestamp already exists.
     """
-    # Create data directory if it doesn't exist
-    os.makedirs('data', exist_ok=True)
-    
-    # Connect to SQLite database
-    conn = sqlite3.connect('data/game_results.db')
-    c = conn.cursor()
-    
-    # Create table if it doesn't exist - with separate columns for each data point
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS user_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT,
-        timestamp TEXT,
+    try:
+        # Create data directory if it doesn't exist with improved error handling
+        os.makedirs('data', exist_ok=True)
         
-        quiz1_answer1 TEXT,
-        quiz1_answer2 TEXT,
-        quiz1_answer3 TEXT,
-        quiz1_answer4 TEXT,
+        # Test write permissions
+        try:
+            test_file_path = os.path.join('data', 'test_permissions.txt')
+            with open(test_file_path, 'w') as f:
+                f.write('test')
+            if os.path.exists(test_file_path):
+                os.remove(test_file_path)
+        except Exception as e:
+            st.error(f"Error with data directory permissions: {str(e)}")
+            return False
         
-        game1_cycle_time REAL,
-        game1_output INTEGER,
-        game1_wip INTEGER,
+        db_path = 'data/game_results.db'
+        db_exists = os.path.exists(db_path)
         
-        prioritization_A TEXT,
-        prioritization_B TEXT,
-        prioritization_C TEXT,
+        # Connect to SQLite database
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
         
-        game2_A_cycle_time REAL,
-        game2_A_output INTEGER,
-        game2_A_wip INTEGER,
+        # Check if the table exists and has the correct schema
+        try:
+            c.execute("SELECT completion_status FROM user_results LIMIT 1")
+        except sqlite3.OperationalError:
+            # If the table doesn't exist or is missing the completion_status column, recreate it
+            if db_exists:
+                # Table exists but has wrong schema, so drop it
+                c.execute("DROP TABLE IF EXISTS user_results")
+                st.warning("Database schema outdated. Recreating database...")
+            
+            # Create fresh table with correct schema
+            c.execute('''
+            CREATE TABLE IF NOT EXISTS user_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                timestamp TEXT,
+                completion_status TEXT,
+                
+                quiz1_answer1 TEXT,
+                quiz1_answer2 TEXT,
+                quiz1_answer3 TEXT,
+                quiz1_answer4 TEXT,
+                
+                game1_cycle_time REAL,
+                game1_output INTEGER,
+                game1_wip INTEGER,
+                
+                prioritization_A TEXT,
+                prioritization_B TEXT,
+                prioritization_C TEXT,
+                
+                game2_A_cycle_time REAL,
+                game2_A_output INTEGER,
+                game2_A_wip INTEGER,
+                
+                game2_B_cycle_time REAL,
+                game2_B_output INTEGER,
+                game2_B_wip INTEGER,
+                
+                game2_C_cycle_time REAL,
+                game2_C_output INTEGER,
+                game2_C_wip INTEGER,
+                
+                final_prioritization_A TEXT,
+                final_prioritization_B TEXT,
+                final_prioritization_C TEXT
+            )
+            ''')
         
-        game2_B_cycle_time REAL,
-        game2_B_output INTEGER,
-        game2_B_wip INTEGER,
+        # Create table if it doesn't exist
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS user_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            timestamp TEXT,
+            completion_status TEXT,
+            
+            quiz1_answer1 TEXT,
+            quiz1_answer2 TEXT,
+            quiz1_answer3 TEXT,
+            quiz1_answer4 TEXT,
+            
+            game1_cycle_time REAL,
+            game1_output INTEGER,
+            game1_wip INTEGER,
+            
+            prioritization_A TEXT,
+            prioritization_B TEXT,
+            prioritization_C TEXT,
+            
+            game2_A_cycle_time REAL,
+            game2_A_output INTEGER,
+            game2_A_wip INTEGER,
+            
+            game2_B_cycle_time REAL,
+            game2_B_output INTEGER,
+            game2_B_wip INTEGER,
+            
+            game2_C_cycle_time REAL,
+            game2_C_output INTEGER,
+            game2_C_wip INTEGER,
+            
+            final_prioritization_A TEXT,
+            final_prioritization_B TEXT,
+            final_prioritization_C TEXT
+        )
+        ''')
         
-        game2_C_cycle_time REAL,
-        game2_C_output INTEGER,
-        game2_C_wip INTEGER,
+        # Extract data from session state
+        quiz1_answers = st.session_state.get('quiz_answers', ['', '', '', ''])
+        while len(quiz1_answers) < 4:
+            quiz1_answers.append('')
         
-        final_prioritization_A TEXT,
-        final_prioritization_B TEXT,
-        final_prioritization_C TEXT
-    )
-    ''')
-    
-    # Extract data from session state
-    quiz1_answers = st.session_state.get('quiz_answers', ['', '', '', ''])
-    while len(quiz1_answers) < 4:
-        quiz1_answers.append('')
-    
-    # Game 1 results - using defaults if not available
-    original_game_results = st.session_state.get('original_game_results', {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0})
-    game1_cycle_time = original_game_results.get('Tracked AVG Cycle Time', 0)
-    game1_output = original_game_results.get('Total Output', 0)
-    game1_wip = original_game_results.get('End WIP', 0)
-    
-    # Second quiz prioritization
-    second_quiz = st.session_state.get('second_quiz', ['', '', ''])
-    while len(second_quiz) < 3:
-        second_quiz.append('')
-    
-    # Game 2 results for all alternatives - using defaults if not available
-    second_game_results = st.session_state.get('second_game_results', {
-        'A': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
-        'B': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
-        'C': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0}
-    })
-    
-    # Extract each value individually to ensure proper data types
-    game2_A_cycle_time = second_game_results.get('A', {}).get('Tracked AVG Cycle Time', 0)
-    game2_A_output = second_game_results.get('A', {}).get('Total Output', 0)
-    game2_A_wip = second_game_results.get('A', {}).get('End WIP', 0)
-    
-    game2_B_cycle_time = second_game_results.get('B', {}).get('Tracked AVG Cycle Time', 0)
-    game2_B_output = second_game_results.get('B', {}).get('Total Output', 0)
-    game2_B_wip = second_game_results.get('B', {}).get('End WIP', 0)
-    
-    game2_C_cycle_time = second_game_results.get('C', {}).get('Tracked AVG Cycle Time', 0)
-    game2_C_output = second_game_results.get('C', {}).get('Total Output', 0)
-    game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)
-    
-    # Final quiz prioritization
-    third_quiz = st.session_state.get('third_quiz', ['', '', ''])
-    while len(third_quiz) < 3:
-        third_quiz.append('')
-    
-    # Current timestamp
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Insert data into database - explicitly passing each value
-    c.execute('''
-    INSERT INTO user_results (
-        username, timestamp,
-        quiz1_answer1, quiz1_answer2, quiz1_answer3, quiz1_answer4,
-        game1_cycle_time, game1_output, game1_wip,
-        prioritization_A, prioritization_B, prioritization_C,
-        game2_A_cycle_time, game2_A_output, game2_A_wip,
-        game2_B_cycle_time, game2_B_output, game2_B_wip,
-        game2_C_cycle_time, game2_C_output, game2_C_wip,
-        final_prioritization_A, final_prioritization_B, final_prioritization_C
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        username, timestamp,
-        quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
-        game1_cycle_time, game1_output, game1_wip,
-        second_quiz[0], second_quiz[1], second_quiz[2],
-        game2_A_cycle_time, game2_A_output, game2_A_wip,
-        game2_B_cycle_time, game2_B_output, game2_B_wip,
-        game2_C_cycle_time, game2_C_output, game2_C_wip,
-        third_quiz[0], third_quiz[1], third_quiz[2]
-    ))
-      # Commit changes and close connection
-    conn.commit()
-    conn.close()
-    
-    # Mark in session state that data has been saved to prevent duplicates
-    st.session_state.data_saved = True
-    return True
+        # Game 1 results
+        original_game_results = st.session_state.get('original_game_results', {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0})
+        game1_cycle_time = original_game_results.get('Tracked AVG Cycle Time', 0)
+        game1_output = original_game_results.get('Total Output', 0)
+        game1_wip = original_game_results.get('End WIP', 0)
+        
+        # Second quiz prioritization
+        second_quiz = st.session_state.get('second_quiz', ['', '', ''])
+        while len(second_quiz) < 3:
+            second_quiz.append('')
+        
+        # Game 2 results for all alternatives
+        second_game_results = st.session_state.get('second_game_results', {
+            'A': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
+            'B': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
+            'C': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0}
+        })
+        
+        # Extract each value individually
+        game2_A_cycle_time = second_game_results.get('A', {}).get('Tracked AVG Cycle Time', 0)
+        game2_A_output = second_game_results.get('A', {}).get('Total Output', 0)
+        game2_A_wip = second_game_results.get('A', {}).get('End WIP', 0)
+        
+        game2_B_cycle_time = second_game_results.get('B', {}).get('Tracked AVG Cycle Time', 0)
+        game2_B_output = second_game_results.get('B', {}).get('Total Output', 0)
+        game2_B_wip = second_game_results.get('B', {}).get('End WIP', 0)
+        
+        game2_C_cycle_time = second_game_results.get('C', {}).get('Tracked AVG Cycle Time', 0)
+        game2_C_output = second_game_results.get('C', {}).get('Total Output', 0)
+        game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)
+        
+        # Final quiz prioritization
+        third_quiz = st.session_state.get('third_quiz', ['', '', ''])
+        while len(third_quiz) < 3:
+            third_quiz.append('')
+        
+        # Current timestamp
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Determine completion status
+        completion_status = "complete" if st.session_state.page == 'thank_you' else st.session_state.get('game_completion', 'partial')
+        
+        # Insert data into database
+        c.execute('''
+        INSERT INTO user_results (
+            username, timestamp, completion_status,
+            quiz1_answer1, quiz1_answer2, quiz1_answer3, quiz1_answer4,
+            game1_cycle_time, game1_output, game1_wip,
+            prioritization_A, prioritization_B, prioritization_C,
+            game2_A_cycle_time, game2_A_output, game2_A_wip,
+            game2_B_cycle_time, game2_B_output, game2_B_wip,
+            game2_C_cycle_time, game2_C_output, game2_C_wip,
+            final_prioritization_A, final_prioritization_B, final_prioritization_C
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            username, timestamp, completion_status,
+            quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
+            game1_cycle_time, game1_output, game1_wip,
+            second_quiz[0], second_quiz[1], second_quiz[2],
+            game2_A_cycle_time, game2_A_output, game2_A_wip,
+            game2_B_cycle_time, game2_B_output, game2_B_wip,
+            game2_C_cycle_time, game2_C_output, game2_C_wip,
+            third_quiz[0], third_quiz[1], third_quiz[2]
+        ))
+        
+        # Commit changes and close connection
+        conn.commit()
+        conn.close()
+        
+        # Mark in session state that data has been saved to prevent duplicates
+        st.session_state.data_saved = True
+        return True
+        
+    except Exception as e:
+        st.error(f"Error saving data: {str(e)}")
+        return False
+
+def save_data_at_key_points():
+    """
+    Saves a snapshot of current data to the database at key points in the game,
+    even if the user doesn't reach the final thank you page
+    """
+    if (not st.session_state.get('data_saved', False) and 
+        st.session_state.get('username', '') and 
+        (st.session_state.page in ['end', 'second_game', 'second_game_end', 'third_quiz'])):
+        
+        try:
+            # Add a temporary flag to mark this as an intermediate save
+            st.session_state['intermediate_save'] = True
+            st.session_state['game_completion'] = st.session_state.page
+            save_data_to_database(st.session_state.username)
+            # Remove the flag after saving
+            st.session_state.pop('intermediate_save', None)
+        except Exception as e:
+            print(f"Error in intermediate save: {str(e)}")
 
 # --- Streamlit UI ---
 
@@ -455,15 +589,16 @@ elif st.session_state.page == 'welcome':
         st.image("images/factory_bg.jpg", width=900)
     except Exception:
         st.warning("Background image not found.")
-    st.markdown("<h1 style='color:#1a237e;'>Welcome to the Dice Game!</h1>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style='font-size:18px;'>
+    st.markdown("<h1 style='color:#1a237e;'>Welcome to the Fab Flow Game!</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#1a237e;'>Experience the Dynamics of a Semiconductor Manufacturing Chain. Produce fast and cost effective!</h3>", unsafe_allow_html=True)
+    st.markdown("""    <div style='font-size:18px;'>
     <ul>
-      <li>You control a <b>10-Step Manufacturing Chain</b> (From raw materials to finished goods)</li>
-      <li>In each round, a <b>random value from 1 to 6</b> represents process capacity for each station</li>
-      <li>All process steps begin with <b>4 WIP</b>, except step 1 which has unlimited raw material</li>
-      <li><b>Throughput = minimum(current WIP, rolled number)</b></li>
-      <li>No skipping or parallel processing</li>
+      <li>You will control a simplified <b>10-Step Semiconductor Manufacturing Chain</b> (Going from raw materials to finished goods) </li>
+      <li>In each round a random value from <b>1 to 6</b> (Dice Roll) will be determined for each station which will represent the process <b>capacity</b> </li>
+      <li>All process steps begin already with <b>4 Wafers</b> in process/Work in Progress (WIP), except Step 1 which has <b>unlimited raw material</b></li>
+      <li>The <b>throughput</b> that each station passes to another station = minimum (current WIP, current Capacity)</li>
+        <li>A Game consists of 20 rounds</li>
+      <li>A unit has to pass <b>every production step</b> and can only pass <b>one step per round</b></li>
     </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -476,21 +611,23 @@ elif st.session_state.page == 'welcome':
 elif st.session_state.page == 'quiz':
     st.markdown("### Quiz: Please answer the following questions before starting the game.")
     quiz_questions = [
-        "What is the average of the capacity per round and station?",
-        "What do you estimate the output will be after 20 rounds?",
-        "What is the raw process time?",
-        "What could the average cycle time be?"
+        "What is the average capacity per round and station? Each round you roll a die (1-6) at each station to determine its capacity for that round. What is the expected value of the die roll?",
+        "If the expected value of a die roll is 3.5, approximately how many wafers do you expect to process in total after 20 rounds (assuming no bottlenecks or disruptions)?",
+        "What is the raw process time (RPT) in this simulation? The RPT is the theoretical minimum time a wafer needs to go through the entire production line without any waiting time.",
+        "What do you expect the average cycle time to be compared to the raw process time (RPT)? The cycle time is the total time a wafer spends in the production system."
     ]
-    correct_answers = [
-        "Expected Value of a Die Roll = (1+2+3+4+5+6)/6 = 3.5",
-        "Estimates e.g. 70 finished Units after 20 rounds (20 * 3.5 = 70)",
-        "A unit can pass through max. one station per round, so RPT is 10 with 10 stations.",
-        "Estimates, but higher than 10, because of Waiting Times in Production Stations!"
+    correct_answers = [        "The expected value of a die roll is (1+2+3+4+5+6)/6 = 3.5 units per round and station.",
+        "With an expected value of 3.5, we should process approximately 70 finished units after 20 rounds (20 rounds × 3.5 units/round = 70 units).",
+        "A wafer must pass through all 10 stations sequentially, moving at most one station per round. Therefore, the raw process time (RPT) is 10 rounds.",
+        "The average cycle time will be higher than the RPT of 10 rounds because wafers will experience waiting times at various production stations due to capacity limitations and variability."
     ]
     
     quiz_answers = st.session_state.quiz_answers
     for i, q in enumerate(quiz_questions):
-        quiz_answers[i] = st.text_input(f"{i+1}. {q}", value=quiz_answers[i], key=f"quiz_{i}")
+        st.markdown(f"**Question {i+1}:**")
+        st.markdown(q)
+        quiz_answers[i] = st.text_input("Your answer:", value=quiz_answers[i], key=f"quiz_{i}")
+        st.markdown("---")
         # Show the correct answer if quiz is submitted
         if st.session_state.quiz_submitted:
             st.success(f"**Correct Answer:** {correct_answers[i]}")
@@ -752,8 +889,7 @@ elif st.session_state.page == 'end':
     total_output = sum(st.session_state.round_outputs)
     total_end_wip = st.session_state.total_end_wip_history[-1] if st.session_state.total_end_wip_history else 0
     tracked_avg_cycle_time = get_tracked_avg_cycle_time(st.session_state.tracked_units)
-    
-    # Store original game results for later comparison
+      # Store original game results for later comparison
     st.session_state.original_game_results = {
         "Total Output": total_output,
         "End WIP": total_end_wip,
@@ -767,6 +903,8 @@ elif st.session_state.page == 'end':
     
     # Always show the Next (Second Quiz) button at the end of the first game
     if st.button("Next (Second Quiz)", key="goto_second_quiz"):
+        # Try to save data before moving to next section
+        save_data_at_key_points()
         st.session_state.page = 'second_quiz'
         st.rerun()
 
@@ -782,13 +920,15 @@ elif st.session_state.page == 'second_quiz':
     for i, opt in enumerate(options):
         second_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(second_quiz[i]), key=f"second_quiz_{i}")
     if st.button("Submit Priorities", key="second_quiz_submit"):
-        if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:
-            st.session_state.second_quiz_submitted = True
+        if all(v in {"1", "2", "3"} for v in second_quiz) and len(set(second_quiz)) == 3:            st.session_state.second_quiz_submitted = True
         else:
             st.warning("Please assign unique priorities 1, 2, and 3!")
+            
     if st.session_state.second_quiz_submitted:
         st.success("Priorities submitted!")
         if st.button("Start Second Game", key="second_game_start"):
+            # Try to save data before moving to second game
+            save_data_at_key_points()
             st.session_state.page = 'second_game'
             st.rerun()
 
@@ -919,7 +1059,7 @@ elif st.session_state.page == 'second_game_round':
             </div>
             """
             st.markdown(html_content, unsafe_allow_html=True)
-          
+        
         # Next round button in the right column
         with buttons_col:
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
@@ -1163,9 +1303,11 @@ elif st.session_state.page == 'comparison':
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
         st.dataframe(df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative"), use_container_width=True)
-
+    
     st.markdown(f"You played: Option {st.session_state.second_game_user_choice}")
     if st.button("Next (Final Quiz)", key="goto_final_quiz"):
+        # Try to save data before moving to final quiz
+        save_data_at_key_points()
         st.session_state.page = 'third_quiz'
         st.rerun()
 
@@ -1181,13 +1323,14 @@ elif st.session_state.page == 'third_quiz':
     for i, opt in enumerate(options):
         third_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(third_quiz[i]), key=f"third_quiz_{i}")
     if st.button("Submit Final Priorities", key="final_quiz_submit"):
-        if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:
-            st.session_state.third_quiz_submitted = True
+        if all(v in {"1", "2", "3"} for v in third_quiz) and len(set(third_quiz)) == 3:            st.session_state.third_quiz_submitted = True
         else:
             st.warning("Please assign unique priorities 1, 2, and 3!")
+            
     if st.session_state.third_quiz_submitted:
         st.success("Final priorities submitted!")
         if st.button("Finish", key="finish_game"):
+            # No need for intermediate save here as the thank_you page will do the final save
             st.session_state.page = 'thank_you'
             st.rerun()
 
@@ -1219,10 +1362,9 @@ elif st.session_state.page == 'thank_you':
                     conn = sqlite3.connect('data/game_results.db')
                     results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
                     conn.close()
-                    
-                    # Reorder columns for better readability
+                      # Reorder columns for better readability
                     column_order = [
-                        'username', 'timestamp',
+                        'username', 'timestamp', 'completion_status',
                         'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
                         'game1_cycle_time', 'game1_output', 'game1_wip',
                         'prioritization_A', 'prioritization_B', 'prioritization_C',
