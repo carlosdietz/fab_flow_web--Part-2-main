@@ -864,15 +864,16 @@ elif st.session_state.page == 'welcome':
 elif st.session_state.page == 'quiz':
     st.markdown("### Quiz: Please answer the following questions before starting the game.")
     quiz_questions = [
-        "What is the average capacity per round and station? Each round you roll a die (1-6) at each station to determine its capacity for that round. What is the expected value of the die roll?",
-        "If the expected value of a die roll is 3.5, approximately how many wafers do you expect to process in total after 20 rounds (assuming no bottlenecks or disruptions)?",
-        "What is the raw process time (RPT) in this simulation? The RPT is the theoretical minimum time a wafer needs to go through the entire production line without any waiting time.",
-        "What do you expect the average cycle time to be compared to the raw process time (RPT)? The cycle time is the total time a wafer spends in the production system."
+        "What is the average capacity per station in one game?",
+        "What do you estimate the output (finished products) will be after playing 20 rounds??",
+        "What is the Raw Process Time in rounds (= Minimum Time it takes for a unit to go through all processing steps from start to finish)?",
+        "4.	What do you estimate the Average Cycle Time to be? (= Actual total rounds it takes for a unit to go through all processing steps)?"
     ]
-    correct_answers = [        "The expected value of a die roll is (1+2+3+4+5+6)/6 = 3.5 units per round and station.",
-        "With an expected value of 3.5, we should process approximately 70 finished units after 20 rounds (20 rounds × 3.5 units/round = 70 units).",
-        "A wafer must pass through all 10 stations sequentially, moving at most one station per round. Therefore, the raw process time (RPT) is 10 rounds.",
-        "The average cycle time will be higher than the RPT of 10 rounds because wafers will experience waiting times at various production stations due to capacity limitations and variability."
+    correct_answers = [
+        "The average capacity per station is the expected value of a die roll (represents capacity) which is (1 + 2 + 3 + 4 + 5 + 6)/6 = 3.5",
+        "The output after 20 rounds will depend on the random capacities of the stations in each round. Only estimates are expected.",
+        "A unit (a wafer) can only pass through max. one station per round, and there are 10 stations in total, the minimum time it needs to pass all station is 10 rounds ",
+        "The results are determined by random capacities but it cannot be less than the Raw Process Time, which is a minimum of 10 rounds. Only Estimates are expected"
     ]
     
     quiz_answers = st.session_state.quiz_answers
@@ -880,11 +881,11 @@ elif st.session_state.page == 'quiz':
         st.markdown(f"**Question {i+1}:**")
         st.markdown(q)
         quiz_answers[i] = st.text_input("Your answer:", value=quiz_answers[i], key=f"quiz_{i}")
-        st.markdown("---")
         # Show the correct answer if quiz is submitted
         if st.session_state.quiz_submitted:
             st.success(f"**Correct Answer:** {correct_answers[i]}")
-            
+            st.markdown("---")
+    
     # Show either submit or start game button based on quiz_submitted state
     if not st.session_state.quiz_submitted:
         if st.button("Submit Quiz", key="first_quiz_submit"):
@@ -1165,13 +1166,21 @@ elif st.session_state.page == 'end':
 elif st.session_state.page == 'second_quiz':
     st.markdown("### Second Quiz: Prioritize the following options (1 = highest priority, 3 = lowest):")
     options = [
-        "A) Increase peak Machine Capacity to random (1,2,3,4,5,6,7)",
+        "A) Increase peak Machine capacity to random (1, 2, 3, 4, 5, 6, 7). ",
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
         "C) Increase Start WIP at each step to 5"
     ]
+    
+    descriptions = [
+        "The capacity (a dice roll) will range from 1 to 7, instead of 1 to 6. This increases the expected value of a die roll from 3.5 to 4.",
+        "The capacity (dice roll) will range from 2 to 5, instead of 1 to 6. The expected value of a die roll stays the same like in the first game (= 3.5).",
+        "The game will begin with a WIP of 5 at each station, instead of 4 as in the first game. This increases the total starting WIP from 36 to 45."
+    ]
+    
     second_quiz = st.session_state.second_quiz
     for i, opt in enumerate(options):
         second_quiz[i] = st.selectbox(f"{opt}", ["", "1", "2", "3"], index=["", "1", "2", "3"].index(second_quiz[i]), key=f"second_quiz_{i}")
+        st.info(descriptions[i])
         # Update session state immediately 
         st.session_state.second_quiz[i] = second_quiz[i]
         
@@ -1501,6 +1510,8 @@ elif st.session_state.page == 'second_game_round':
 # --- Comparison Page ---
 elif st.session_state.page == 'comparison':
     st.markdown("## Comparison of Alternatives")
+    st.markdown("### Efficiency Analysis of Factory Configurations")
+    st.markdown("Below is an overview of the three alternatives (A, B, and C) compared with the results of the first game. The comparison focuses on key performance metrics, including Total End WIP, Total Output after 20 Rounds, and Average Cycle Time.")
     
     # Add safety check to prevent attribute errors
     if not hasattr(st.session_state, 'second_game_results') or not st.session_state.second_game_results:
@@ -1519,11 +1530,9 @@ elif st.session_state.page == 'comparison':
         st.warning("Original game results were missing. Using default values.")
     
     results = st.session_state.second_game_results
-    original = st.session_state.original_game_results
-
-    # Prepare data for diagrams and tables (add "Original" as the first row)
+    original = st.session_state.original_game_results    # Prepare data for diagrams and tables (add "Original" as the first row)
     df = pd.DataFrame({
-        "Alternative": ["Original", "A", "B", "C"],
+        "Alternative": ["Original", "A: Peak Machine Capacity", "B: Reduced Variability", "C: Increased WIP"],
         "Total Output": [
             original["Total Output"],
             results["A"]["Total Output"],
@@ -1542,8 +1551,21 @@ elif st.session_state.page == 'comparison':
             results["B"]["Tracked AVG Cycle Time"],
             results["C"]["Tracked AVG Cycle Time"]
         ],
-    })
-
+    })    # Get the user's chosen alternative for highlighting
+    user_choice = st.session_state.second_game_user_choice
+      # Function to style the dataframe with played alternative highlighted
+    def highlight_played_alternative(df):
+        # Map the user choice to the new alternative names
+        choice_map = {
+            'A': 'A: Peak Machine Capacity',
+            'B': 'B: Reduced Variability',
+            'C': 'C: Increased WIP'
+        }
+        played_alternative = choice_map.get(user_choice, '')
+        
+        # Create a style function that highlights the played alternative
+        return ['background-color: #f0f0f0' if val == played_alternative else '' for val in df.index]
+    
     kpi_cols = st.columns(3)
     # WIP
     with kpi_cols[0]:
@@ -1555,7 +1577,10 @@ elif st.session_state.page == 'comparison':
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df[["Alternative", "End WIP"]].set_index("Alternative"), use_container_width=True)
+        st.dataframe(
+            df[["Alternative", "End WIP"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            use_container_width=True
+        )
     # Output
     with kpi_cols[1]:
         st.markdown("<h4 style='color:#388e3c;'>Total Output</h4>", unsafe_allow_html=True)
@@ -1566,7 +1591,10 @@ elif st.session_state.page == 'comparison':
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df[["Alternative", "Total Output"]].set_index("Alternative"), use_container_width=True)
+        st.dataframe(
+            df[["Alternative", "Total Output"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            use_container_width=True
+        )
     # Cycle Time
     with kpi_cols[2]:
         st.markdown("<h4 style='color:#fbc02d;'>Tracked AVG Cycle Time</h4>", unsafe_allow_html=True)
@@ -1577,7 +1605,10 @@ elif st.session_state.page == 'comparison':
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative"), use_container_width=True)
+        st.dataframe(
+            df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            use_container_width=True
+        )
     
     st.markdown(f"You played: Option {st.session_state.second_game_user_choice}")
     if st.button("Next (Final Quiz)", key="goto_final_quiz"):
@@ -1651,20 +1682,15 @@ elif st.session_state.page == 'thank_you':
     st.markdown("<h1 style='color:#388e3c;'>Thank you for playing the Dice Game!</h1>", unsafe_allow_html=True)
     st.markdown("We hope you enjoyed learning about semiconductor manufacturing flow and the impact of variability.")
     
-    # Debug info to verify all quiz values
-    st.markdown("### Debug Info")
-    
-    # Show initial prioritization values
+    # Keep the values in session state but don't display them
     prio_A = st.session_state.get('prioritization_A', st.session_state.second_quiz[0] if len(st.session_state.second_quiz) > 0 else '')
     prio_B = st.session_state.get('prioritization_B', st.session_state.second_quiz[1] if len(st.session_state.second_quiz) > 1 else '')
     prio_C = st.session_state.get('prioritization_C', st.session_state.second_quiz[2] if len(st.session_state.second_quiz) > 2 else '')
-    st.write(f"Initial prioritization values: A={prio_A}, B={prio_B}, C={prio_C}")
     
-    # Show final prioritization values
+    # Keep retrieving final values but don't display them
     final_A = st.session_state.get('final_prioritization_A', st.session_state.third_quiz[0] if len(st.session_state.third_quiz) > 0 else '')
     final_B = st.session_state.get('final_prioritization_B', st.session_state.third_quiz[1] if len(st.session_state.third_quiz) > 1 else '')
     final_C = st.session_state.get('final_prioritization_C', st.session_state.third_quiz[2] if len(st.session_state.third_quiz) > 2 else '')
-    st.write(f"Final prioritization values: A={final_A}, B={final_B}, C={final_C}")
     
     # Save data to database
     try:
