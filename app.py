@@ -272,7 +272,7 @@ NUM_ROUNDS = 20
 START_WIP = 4
 RAW_MATERIAL = float('inf')
 DICE_RANGE = (1, 6)
-ICONS = {'wip': '🟦', 'output': '💎', 'clock': '⏰'}
+ICONS = {'wip': '', 'output': '', 'clock': ''}
 
 class Station:
     def __init__(self, step, wip, fifo=None):
@@ -799,7 +799,7 @@ if 'page' not in st.session_state:
     st.session_state.original_game_results = {
         "Total Output": 0,
         "End WIP": 0,
-        "Tracked AVG Cycle Time": 0
+        "Average Cycle Time": 0
     }
 
 if 'start_wip_history' not in st.session_state:
@@ -838,11 +838,11 @@ if st.session_state.page == 'username_entry':
 
 # --- Welcome Page ---
 elif st.session_state.page == 'welcome':
+    st.markdown("<h1 style='color:#1a237e;'>Welcome to the Fab Flow Game!</h1>", unsafe_allow_html=True)
     try:
         st.image("images/factory_bg.jpg", width=900)
     except Exception:
         st.warning("Background image not found.")
-    st.markdown("<h1 style='color:#1a237e;'>Welcome to the Fab Flow Game!</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#1a237e;'>Experience the Dynamics of a Semiconductor Manufacturing Chain. Produce fast and cost effective!</h3>", unsafe_allow_html=True)
     st.markdown("""    <div style='font-size:18px;'>
     <ul>
@@ -864,10 +864,10 @@ elif st.session_state.page == 'welcome':
 elif st.session_state.page == 'quiz':
     st.markdown("### Quiz: Please answer the following questions before starting the game.")
     quiz_questions = [
-        "What is the average capacity per station in one game?",
-        "What do you estimate the output (finished products) will be after playing 20 rounds??",
+        "What is the average capacity per station in this game (Expected value)?",
+        "What do you estimate the output (finished products) will be after playing 20 rounds? Tip: minimum of 20 and maximum of 102",
         "What is the Raw Process Time in rounds (= Minimum Time it takes for a unit to go through all processing steps from start to finish)?",
-        "4.	What do you estimate the Average Cycle Time to be? (= Actual total rounds it takes for a unit to go through all processing steps)?"
+        "What do you estimate the Average Cycle Time to be? (= Actual total rounds it takes for a unit to go through all processing steps)?"
     ]
     correct_answers = [
         "The average capacity per station is the expected value of a die roll (represents capacity) which is (1 + 2 + 3 + 4 + 5 + 6)/6 = 3.5",
@@ -1147,13 +1147,13 @@ elif st.session_state.page == 'end':
     st.session_state.original_game_results = {
         "Total Output": total_output,
         "End WIP": total_end_wip,
-        "Tracked AVG Cycle Time": tracked_avg_cycle_time
+        "Average Cycle time": tracked_avg_cycle_time
     }
     
     st.markdown("## GAME END")
     st.success(f"Total Output: {total_output} {ICONS['output']}")
-    st.info(f"Tracked AVG CYCLE TIME: {tracked_avg_cycle_time:.2f} {ICONS['clock']}")
-    st.warning(f"TOTAL WIP: {total_end_wip} {ICONS['wip']}")
+    st.info(f"Average Cycle time: {tracked_avg_cycle_time:.2f} {ICONS['clock']}")
+    st.warning(f"Total WIP: {total_end_wip} {ICONS['wip']}")
     
     # Always show the Next (Second Quiz) button at the end of the first game
     if st.button("Next (Second Quiz)", key="goto_second_quiz"):
@@ -1168,7 +1168,7 @@ elif st.session_state.page == 'second_quiz':
     options = [
         "A) Increase peak Machine capacity to random (1, 2, 3, 4, 5, 6, 7). ",
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
-        "C) Increase Start WIP at each step to 5"
+        "C) Increase Start WIP at each step to 5 (from 36 to 45 initial WIP)"
     ]
     
     descriptions = [
@@ -1261,7 +1261,7 @@ elif st.session_state.page == 'second_game':
         results[opt] = {
             "Total Output": total_output,
             "End WIP": total_end_wip,
-            "Tracked AVG Cycle Time": tracked_avg_cycle_time
+            "Average Cycle Time": tracked_avg_cycle_time
         }
     st.session_state.second_game_results = results
     # Now play the actual game for the user's top choice
@@ -1272,10 +1272,18 @@ elif st.session_state.page == 'second_game':
     st.session_state.page = 'second_game_round'
     st.rerun()
 
-elif st.session_state.page == 'second_game_round':
-    # Show Round 0 for second game
+elif st.session_state.page == 'second_game_round':    # Show Round 0 for second game
     if st.session_state.round_num == 1 and not getattr(st.session_state, "second_game_round0_done", False):
-        st.markdown("## Round 0")
+        # Get the option label for the user's choice
+        top_choice = st.session_state.second_game_user_choice
+        option_labels = {
+            "A": "A: Peak Machine Capacity",
+            "B": "B: Reduced Variability",
+            "C": "C: Increased WIP"
+        }
+        option_label = option_labels.get(top_choice, top_choice)
+        
+        st.markdown(f"## Round 0 ({option_label})")
         st.markdown("### Manufacturing Chain")
         
         # Use the correct start_wip for the selected option
@@ -1355,8 +1363,17 @@ elif st.session_state.page == 'second_game_round':
                 st.session_state.second_game_round0_done = True
                 st.rerun()
         st.stop()    # Regular rounds (1-20) display for second game
-    # Show the current round number
-    st.markdown(f"## Round {st.session_state.round_num}")
+    # Get the option label for the user's choice
+    top_choice = st.session_state.second_game_user_choice
+    option_labels = {
+        "A": "A: Peak Machine Capacity",
+        "B": "B: Reduced Variability",
+        "C": "C: Increased WIP"
+    }
+    option_label = option_labels.get(top_choice, top_choice)
+    
+    # Show the current round number with option label
+    st.markdown(f"## Round {st.session_state.round_num} ({option_label})")
     st.markdown("### Manufacturing Chain")
 
     # Process round logic - similar to main game but with user's chosen dice_range
@@ -1619,11 +1636,11 @@ elif st.session_state.page == 'comparison':
 
 # --- Third Quiz Page ---
 elif st.session_state.page == 'third_quiz':
-    st.markdown("### Final Quiz: Now that you have seen the results, please prioritize the following options again (1 = highest priority, 3 = lowest):")
+    st.markdown("### Final Quiz:  Now that you have seen the results, please prioritize the following options again as if you were making the decision once more. The game will not be played again!")
     options = [
         "A) Increase peak Machine Capacity to random (1,2,3,4,5,6,7)",
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
-        "C) Increase Start WIP at each step to 5"
+        "C) Increase Start WIP at each step to 5 (from 36 to 45 initial WIP)"
     ]
     
     third_quiz = st.session_state.third_quiz
