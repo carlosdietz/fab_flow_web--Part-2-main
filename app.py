@@ -535,8 +535,8 @@ def save_data_to_database(username):
             quiz1_answers.append('')
         
         # Game 1 results
-        original_game_results = st.session_state.get('original_game_results', {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0})
-        game1_cycle_time = original_game_results.get('Tracked AVG Cycle Time', 0)
+        original_game_results = st.session_state.get('original_game_results', {'Total Output': 0, 'End WIP': 0, 'Average Cycle time': 0})
+        game1_cycle_time = original_game_results.get('Average Cycle time', 0)
         game1_output = original_game_results.get('Total Output', 0)
         game1_wip = original_game_results.get('End WIP', 0)
         
@@ -1542,7 +1542,7 @@ elif st.session_state.page == 'comparison':
         st.session_state.original_game_results = {
             "Total Output": 0,
             "End WIP": 0,
-            "Tracked AVG Cycle Time": 0
+            "Average Cycle time": 0
         }
         st.warning("Original game results were missing. Using default values.")
     
@@ -1561,12 +1561,11 @@ elif st.session_state.page == 'comparison':
             results["A"]["End WIP"],
             results["B"]["End WIP"],
             results["C"]["End WIP"]
-        ],
-        "Tracked AVG Cycle Time": [
-            original["Tracked AVG Cycle Time"],
-            results["A"]["Tracked AVG Cycle Time"],
-            results["B"]["Tracked AVG Cycle Time"],
-            results["C"]["Tracked AVG Cycle Time"]
+        ],        "Average Cycle Time": [
+            original["Average Cycle time"],
+            results["A"]["Average Cycle Time"],
+            results["B"]["Average Cycle Time"],
+            results["C"]["Average Cycle Time"]
         ],
     })    # Get the user's chosen alternative for highlighting
     user_choice = st.session_state.second_game_user_choice
@@ -1612,18 +1611,17 @@ elif st.session_state.page == 'comparison':
             df[["Alternative", "Total Output"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
             use_container_width=True
         )
-    # Cycle Time
-    with kpi_cols[2]:
-        st.markdown("<h4 style='color:#fbc02d;'>Tracked AVG Cycle Time</h4>", unsafe_allow_html=True)
+    # Cycle Time    with kpi_cols[2]:
+        st.markdown("<h4 style='color:#fbc02d;'>Average Cycle Time</h4>", unsafe_allow_html=True)
         fig = go.Figure([go.Bar(
             x=df["Alternative"],
-            y=df["Tracked AVG Cycle Time"],
+            y=df["Average Cycle Time"],
             marker_color=["#757575", "#fbc02d", "#ffe082", "#fff9c4"]
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
         st.dataframe(
-            df[["Alternative", "Tracked AVG Cycle Time"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            df[["Alternative", "Average Cycle Time"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
             use_container_width=True
         )
     
