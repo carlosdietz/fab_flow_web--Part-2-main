@@ -10,6 +10,39 @@ from io import BytesIO
 
 st.set_page_config(page_title="Fab Flow Game - Semiconductor Manufacturing Chain", layout="wide")
 
+# Add automatic responsive scaling based on screen resolution
+st.markdown("""
+<script>
+    // Function to set the zoom level based on screen resolution
+    function setZoomBasedOnResolution() {
+        const height = window.screen.height;
+        
+        // Default zoom for 1440p (2560x1440) monitors
+        let zoomLevel = '110%';
+        
+        // Check if screen height is around 1080p
+        if (height <= 1080) {
+            zoomLevel = '75%';
+        }
+        
+        // Apply the zoom level
+        document.body.style.zoom = zoomLevel;
+        document.body.style.MozTransform = `scale(${parseInt(zoomLevel)/100})`;
+        document.body.style.MozTransformOrigin = "0 0";
+    }
+    
+    // Set zoom when page loads
+    window.addEventListener('DOMContentLoaded', (event) => {
+        setZoomBasedOnResolution();
+    });
+    
+    // Update if window resizes (like when connecting to external display)
+    window.addEventListener('resize', (event) => {
+        setZoomBasedOnResolution();
+    });
+</script>
+""", unsafe_allow_html=True)
+
 # Admin sidebar for data export - only visible if 'admin' query parameter is present
 if 'admin' in st.query_params:
     with st.sidebar:
@@ -544,26 +577,25 @@ def save_data_to_database(username):
         second_quiz = st.session_state.get('second_quiz', ['', '', ''])
         while len(second_quiz) < 3:
             second_quiz.append('')
-        
-        # Game 2 results for all alternatives
+          # Game 2 results for all alternatives
         second_game_results = st.session_state.get('second_game_results', {
-            'A': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
-            'B': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0},
-            'C': {'Total Output': 0, 'End WIP': 0, 'Tracked AVG Cycle Time': 0}
+            'A': {'Total Output': 0, 'End WIP': 0, 'Average Cycle Time': 0},
+            'B': {'Total Output': 0, 'End WIP': 0, 'Average Cycle Time': 0},
+            'C': {'Total Output': 0, 'End WIP': 0, 'Average Cycle Time': 0}
         })
-        
-        # Extract each value individually
-        game2_A_cycle_time = second_game_results.get('A', {}).get('Tracked AVG Cycle Time', 0)
+          # Extract each value individually
+        game2_A_cycle_time = second_game_results.get('A', {}).get('Average Cycle Time', 0)
         game2_A_output = second_game_results.get('A', {}).get('Total Output', 0)
         game2_A_wip = second_game_results.get('A', {}).get('End WIP', 0)
         
-        game2_B_cycle_time = second_game_results.get('B', {}).get('Tracked AVG Cycle Time', 0)
+        game2_B_cycle_time = second_game_results.get('B', {}).get('Average Cycle Time', 0)
         game2_B_output = second_game_results.get('B', {}).get('Total Output', 0)
         game2_B_wip = second_game_results.get('B', {}).get('End WIP', 0)
-        
-        game2_C_cycle_time = second_game_results.get('C', {}).get('Tracked AVG Cycle Time', 0)
+        game2_C_cycle_time = second_game_results.get('C', {}).get('Average Cycle Time', 0)
         game2_C_output = second_game_results.get('C', {}).get('Total Output', 0)
-        game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)        # Second quiz prioritization - ensure it's properly captured
+        game2_C_wip = second_game_results.get('C', {}).get('End WIP', 0)
+        
+        # Second quiz prioritization - ensure it's properly captured
         second_quiz = st.session_state.get('second_quiz', ['', '', ''])
         
         # Try to get values directly from session state first (most reliable)
@@ -880,10 +912,9 @@ elif st.session_state.page == 'quiz':
     for i, q in enumerate(quiz_questions):
         st.markdown(f"**Question {i+1}:**")
         st.markdown(q)
-        quiz_answers[i] = st.text_input("Your answer:", value=quiz_answers[i], key=f"quiz_{i}")
-        # Show the correct answer if quiz is submitted
+        quiz_answers[i] = st.text_input("Your answer:", value=quiz_answers[i], key=f"quiz_{i}")        # Show the answer if quiz is submitted
         if st.session_state.quiz_submitted:
-            st.success(f"**Correct Answer:** {correct_answers[i]}")
+            st.info(f"**Answer:** {correct_answers[i]}")
             st.markdown("---")
     
     # Show either submit or start game button based on quiz_submitted state
@@ -1142,18 +1173,33 @@ elif st.session_state.page in ['initial', 'round']:
 elif st.session_state.page == 'end':
     total_output = sum(st.session_state.round_outputs)
     total_end_wip = st.session_state.total_end_wip_history[-1] if st.session_state.total_end_wip_history else 0
-    tracked_avg_cycle_time = get_tracked_avg_cycle_time(st.session_state.tracked_units)
-      # Store original game results for later comparison
+    tracked_avg_cycle_time = get_tracked_avg_cycle_time(st.session_state.tracked_units)    # Store original game results for later comparison
     st.session_state.original_game_results = {
         "Total Output": total_output,
         "End WIP": total_end_wip,
         "Average Cycle time": tracked_avg_cycle_time
     }
     
-    st.markdown("## GAME END")
-    st.success(f"Total Output: {total_output} {ICONS['output']}")
-    st.info(f"Average Cycle time: {tracked_avg_cycle_time:.2f} {ICONS['clock']}")
-    st.warning(f"Total WIP: {total_end_wip} {ICONS['wip']}")
+    st.markdown("## First Game Results")
+    
+    # Using custom HTML for styling with colored backgrounds
+    st.markdown(f"""
+    <div style="background-color:#d4edda; color:#155724; padding:15px; border-radius:4px; margin-bottom:10px;">
+        <span style="font-weight:bold;">Total Output:</span> <span style="font-size:22px; font-weight:bold;">{total_output}</span> {ICONS['output']}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div style="background-color:#d1ecf1; color:#0c5460; padding:15px; border-radius:4px; margin-bottom:10px;">
+        <span style="font-weight:bold;">Average Cycle time:</span> <span style="font-size:22px; font-weight:bold;">{tracked_avg_cycle_time:.2f}</span> {ICONS['clock']}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div style="background-color:#fff3cd; color:#856404; padding:15px; border-radius:4px; margin-bottom:10px;">
+        <span style="font-weight:bold;">Total WIP:</span> <span style="font-size:22px; font-weight:bold;">{total_end_wip}</span> {ICONS['wip']}
+    </div>
+    """, unsafe_allow_html=True)
     
     # Always show the Next (Second Quiz) button at the end of the first game
     if st.button("Next (Second Quiz)", key="goto_second_quiz"):
@@ -1164,7 +1210,8 @@ elif st.session_state.page == 'end':
 
 # --- Second Quiz Page ---
 elif st.session_state.page == 'second_quiz':
-    st.markdown("### Second Quiz: Prioritize the following options (1 = highest priority, 3 = lowest):")
+    st.markdown("### Second Quiz: What should we do to increase the performance of the Manufacturing Chain?")
+    st.markdown("#### Prioritize the following options (1 = highest priority, 3 = lowest). The Option with the highest priority (= 1) will then be played.")
     options = [
         "A) Increase peak Machine capacity to random (1, 2, 3, 4, 5, 6, 7). ",
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
@@ -1611,7 +1658,8 @@ elif st.session_state.page == 'comparison':
             df[["Alternative", "Total Output"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
             use_container_width=True
         )
-    # Cycle Time    with kpi_cols[2]:
+    # Cycle Time    
+    with kpi_cols[2]:
         st.markdown("<h4 style='color:#fbc02d;'>Average Cycle Time</h4>", unsafe_allow_html=True)
         fig = go.Figure([go.Bar(
             x=df["Alternative"],
@@ -1634,7 +1682,8 @@ elif st.session_state.page == 'comparison':
 
 # --- Third Quiz Page ---
 elif st.session_state.page == 'third_quiz':
-    st.markdown("### Final Quiz:  Now that you have seen the results, please prioritize the following options again as if you were making the decision once more. The game will not be played again!")
+    st.markdown("### Final Quiz:  Now that you have seen the results, please prioritize the following options again as if you were making the decision once more.")
+    st.markdown("#### The game will not be played again!")
     options = [
         "A) Increase peak Machine Capacity to random (1,2,3,4,5,6,7)",
         "B) Reduce Variability of the Capacity to random (2,3,4,5)",
