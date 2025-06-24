@@ -8,6 +8,35 @@ import datetime
 from io import BytesIO
 from io import BytesIO
 
+def clean_format_number(value):
+    """
+    Format a number to show at most 2 decimal places, removing trailing zeros.
+    Examples:
+    - 14.8654 becomes 14.87
+    - 18.00 becomes 18
+    - 18.10 becomes 18.1
+    """
+    if not isinstance(value, (int, float)):
+        return value
+    
+    # Round to 2 decimal places
+    rounded = round(value, 2)
+    
+    # Convert to string with fixed precision
+    formatted = f"{rounded:.2f}"
+    
+    # Remove trailing zeros after decimal point
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    
+    return formatted
+
+def format_number(value):
+    """Format numerical values to always show 2 decimal places"""
+    if isinstance(value, (int, float)):
+        return f"{round(value, 2):.2f}"
+    return value
+
 st.set_page_config(page_title="Fab Flow Game - Semiconductor Manufacturing Chain", layout="wide")
 
 # Add automatic responsive scaling based on screen resolution
@@ -105,17 +134,14 @@ if 'admin' in st.query_params:
                 else:
                     st.warning("No database file found. Run the game first to generate data.")
             except Exception as e:
-                st.error(f"Error exporting data: {str(e)}")
-        
-        # DATABASE MANAGEMENT SECTION
+                st.error(f"Error exporting data: {str(e)}")        # DATABASE MANAGEMENT SECTION
         st.markdown("### Database Management")
         st.info("To fix database errors, close all browser tabs running this app, then click the button below.")
-        
         if st.button("Rebuild Database Schema", key="admin_rebuild_db"):
             try:
                 # Let's take a safer approach - backup and recreate instead of deleting
                 db_path = 'data/game_results.db'
-                backup_data = None                # Check if we can access the database
+                
                 if os.path.exists(db_path):
                     st.info("Attempting to rebuild the database schema. This will fix any 'missing column' errors.")
                     
@@ -131,8 +157,6 @@ if 'admin' in st.query_params:
                             st.error("Could not remove temporary database file. Please close all applications and try again.")
                             continue_operation = False
                     
-                    # Create a new database with the correct schema
-                    new_conn = sqlite3.connect(temp_db_path)                    # Only proceed if we were able to remove the temporary file or it didn't exist
                     if continue_operation:
                         try:
                             # Create a new database connection
@@ -237,49 +261,49 @@ if 'admin' in st.query_params:
                     # If no database exists yet, just create a new one
                     conn = sqlite3.connect(db_path)
                     c = conn.cursor()
-                c.execute('''
-                CREATE TABLE IF NOT EXISTS user_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT,
-                    timestamp TEXT,
-                    completion_status TEXT,
                     
-                    quiz1_answer1 TEXT,
-                    quiz1_answer2 TEXT,
-                    quiz1_answer3 TEXT,
-                    quiz1_answer4 TEXT,
-                    
-                    game1_cycle_time REAL,
-                    game1_output INTEGER,
-                    game1_wip INTEGER,
-                    
-                    prioritization_A TEXT,
-                    prioritization_B TEXT,
-                    prioritization_C TEXT,
-                    
-                    game2_A_cycle_time REAL,
-                    game2_A_output INTEGER,
-                    game2_A_wip INTEGER,
-                    
-                    game2_B_cycle_time REAL,
-                    game2_B_output INTEGER,
-                    game2_B_wip INTEGER,
-                    
-                    game2_C_cycle_time REAL,
-                    game2_C_output INTEGER,
-                    game2_C_wip INTEGER,
-                    
-                    final_prioritization_A TEXT,
-                    final_prioritization_B TEXT,
-                    final_prioritization_C TEXT
-                )
-                ''')
-                conn.commit()
-                conn.close()
-                st.success("Database schema rebuilt successfully!")
+                    # Create the table structure
+                    c.execute('''
+                    CREATE TABLE IF NOT EXISTS user_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT,
+                        timestamp TEXT,
+                        completion_status TEXT,
+                        
+                        quiz1_answer1 TEXT,
+                        quiz1_answer2 TEXT,
+                        quiz1_answer3 TEXT,
+                        quiz1_answer4 TEXT,
+                        
+                        game1_cycle_time REAL,
+                        game1_output INTEGER,
+                        game1_wip INTEGER,
+                        
+                        prioritization_A TEXT,
+                        prioritization_B TEXT,
+                        prioritization_C TEXT,
+                        
+                        game2_A_cycle_time REAL,
+                        game2_A_output INTEGER,
+                        game2_A_wip INTEGER,
+                        
+                        game2_B_cycle_time REAL,
+                        game2_B_output INTEGER,
+                        game2_B_wip INTEGER,
+                        
+                        game2_C_cycle_time REAL,
+                        game2_C_output INTEGER,
+                        game2_C_wip INTEGER,
+                        
+                        final_prioritization_A TEXT,
+                        final_prioritization_B TEXT,
+                        final_prioritization_C TEXT                    )
+                    ''')
+                    conn.commit()
+                    conn.close()
+                    st.success("Database schema rebuilt successfully!")
             except Exception as e:
                 st.error(f"Error rebuilding database: {str(e)}")
-        
         # Add a button to delete all data
         if st.button("Delete All Data", key="admin_delete_data", type="primary", help="WARNING: This will delete all saved game data!"):
             try:
@@ -393,8 +417,8 @@ def process_round(stations, prev_incoming, dice_range, round_num, finished_units
 def get_tracked_avg_cycle_time(tracked_units):
     cycle_times = [v['exit'] - v['entry'] for v in tracked_units.values() if v['exit'] is not None]
     if cycle_times:
-        return sum(cycle_times) / len(cycle_times)
-    return 0
+        return round(sum(cycle_times) / len(cycle_times), 2)
+    return 0.00
 
 def simulate_multiple_rounds(num_rounds):
     """
@@ -1182,22 +1206,25 @@ elif st.session_state.page == 'end':
     
     st.markdown("## First Game Results")
     
-    # Using custom HTML for styling with colored backgrounds
+    # Using custom HTML for styling with colored backgrounds    # Format values with clean_format_number function
+    formatted_output = clean_format_number(total_output)
     st.markdown(f"""
     <div style="background-color:#d4edda; color:#155724; padding:15px; border-radius:4px; margin-bottom:10px;">
-        <span style="font-weight:bold;">Total Output:</span> <span style="font-size:22px; font-weight:bold;">{total_output}</span> {ICONS['output']}
+        <span style="font-weight:bold;">Total Output:</span> <span style="font-size:22px; font-weight:bold;">{formatted_output}</span> {ICONS['output']}
     </div>
     """, unsafe_allow_html=True)
-    
+      # Format cycle time with clean_format_number function
+    formatted_cycle_time = clean_format_number(tracked_avg_cycle_time)
     st.markdown(f"""
     <div style="background-color:#d1ecf1; color:#0c5460; padding:15px; border-radius:4px; margin-bottom:10px;">
-        <span style="font-weight:bold;">Average Cycle time:</span> <span style="font-size:22px; font-weight:bold;">{tracked_avg_cycle_time:.2f}</span> {ICONS['clock']}
+        <span style="font-weight:bold;">Average Cycle time:</span> <span style="font-size:22px; font-weight:bold;">{formatted_cycle_time}</span> {ICONS['clock']}
     </div>
     """, unsafe_allow_html=True)
-    
+      # Format total WIP with clean_format_number function
+    formatted_wip = clean_format_number(total_end_wip)
     st.markdown(f"""
     <div style="background-color:#fff3cd; color:#856404; padding:15px; border-radius:4px; margin-bottom:10px;">
-        <span style="font-weight:bold;">Total WIP:</span> <span style="font-size:22px; font-weight:bold;">{total_end_wip}</span> {ICONS['wip']}
+        <span style="font-weight:bold;">Total WIP:</span> <span style="font-size:22px; font-weight:bold;">{formatted_wip}</span> {ICONS['wip']}
     </div>
     """, unsafe_allow_html=True)
     
@@ -1328,7 +1355,7 @@ elif st.session_state.page == 'second_game_round':    # Show Round 0 for second 
             "B": "B: Reduced Variability",
             "C": "C: Increased WIP"
         }
-        option_label = option_labels.get(top_choice, top_choice)
+        option_label = option_labels.get(top_choice, '')
         
         st.markdown(f"## Round 0 ({option_label})")
         st.markdown("### Manufacturing Chain")
@@ -1594,7 +1621,8 @@ elif st.session_state.page == 'comparison':
         st.warning("Original game results were missing. Using default values.")
     
     results = st.session_state.second_game_results
-    original = st.session_state.original_game_results    # Prepare data for diagrams and tables (add "Original" as the first row)
+
+    original = st.session_state.original_game_results    # Prepare data for diagrams and tables (add "Original" as the first row)    # Create DataFrame with the data
     df = pd.DataFrame({
         "Alternative": ["Original", "A: Peak Machine Capacity", "B: Reduced Variability", "C: Increased WIP"],
         "Total Output": [
@@ -1608,13 +1636,19 @@ elif st.session_state.page == 'comparison':
             results["A"]["End WIP"],
             results["B"]["End WIP"],
             results["C"]["End WIP"]
-        ],        "Average Cycle Time": [
+        ],
+        "Average Cycle Time": [
             original["Average Cycle time"],
             results["A"]["Average Cycle Time"],
             results["B"]["Average Cycle Time"],
             results["C"]["Average Cycle Time"]
         ],
-    })    # Get the user's chosen alternative for highlighting
+    })
+    
+    # Round numeric columns to 2 decimal places
+    numeric_cols = ["Total Output", "End WIP", "Average Cycle Time"]
+    for col in numeric_cols:
+        df[col] = df[col].round(2)# Get the user's chosen alternative for highlighting
     user_choice = st.session_state.second_game_user_choice
       # Function to style the dataframe with played alternative highlighted
     def highlight_played_alternative(df):
@@ -1636,26 +1670,33 @@ elif st.session_state.page == 'comparison':
         fig = go.Figure([go.Bar(
             x=df["Alternative"],
             y=df["End WIP"],
+            text=df["End WIP"].apply(lambda x: clean_format_number(x)),
+            textposition="auto",
             marker_color=["#757575", "#1976d2", "#64b5f6", "#90caf9"]
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)    # Format with clean number display and highlight played alternative
         st.dataframe(
-            df[["Alternative", "End WIP"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            df[["Alternative", "End WIP"]].set_index("Alternative").style
+            .format({"End WIP": lambda x: clean_format_number(x)})
+            .apply(highlight_played_alternative, axis=0), 
             use_container_width=True
-        )
-    # Output
+        )    # Output
     with kpi_cols[1]:
         st.markdown("<h4 style='color:#388e3c;'>Total Output</h4>", unsafe_allow_html=True)
         fig = go.Figure([go.Bar(
             x=df["Alternative"],
             y=df["Total Output"],
+            text=df["Total Output"].apply(lambda x: clean_format_number(x)),
+            textposition="auto",
             marker_color=["#757575", "#388e3c", "#81c784", "#c8e6c9"]
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)    # Format with clean number display and highlight played alternative
         st.dataframe(
-            df[["Alternative", "Total Output"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            df[["Alternative", "Total Output"]].set_index("Alternative").style
+            .format({"Total Output": lambda x: clean_format_number(x)})
+            .apply(highlight_played_alternative, axis=0), 
             use_container_width=True
         )
     # Cycle Time    
@@ -1664,12 +1705,16 @@ elif st.session_state.page == 'comparison':
         fig = go.Figure([go.Bar(
             x=df["Alternative"],
             y=df["Average Cycle Time"],
+            text=df["Average Cycle Time"].apply(lambda x: clean_format_number(x)),
+            textposition="auto",
             marker_color=["#757575", "#fbc02d", "#ffe082", "#fff9c4"]
         )])
         fig.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)    # Format with clean number display and highlight played alternative
         st.dataframe(
-            df[["Alternative", "Average Cycle Time"]].set_index("Alternative").style.apply(highlight_played_alternative, axis=0), 
+            df[["Alternative", "Average Cycle Time"]].set_index("Alternative").style
+            .format({"Average Cycle Time": lambda x: clean_format_number(x)})
+            .apply(highlight_played_alternative, axis=0), 
             use_container_width=True
         )
     
