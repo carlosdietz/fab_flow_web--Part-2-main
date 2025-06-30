@@ -492,9 +492,11 @@ def save_data_to_database(username):
             st.error(f"Error with data directory permissions: {str(e)}")
             return False
         
-        db_path = 'data/game_results.db'
+        # Use absolute path for database file
+        db_path = os.path.abspath('data/game_results.db')
         db_exists = os.path.exists(db_path)
-          # Connect to SQLite database using our helper
+        
+        # Connect to SQLite database using our helper
         conn = get_db_connection()
         c = conn.cursor()
         
@@ -512,8 +514,8 @@ def save_data_to_database(username):
             c.execute('''
             CREATE TABLE IF NOT EXISTS user_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
-                timestamp TEXT,
+                username TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
                 completion_status TEXT,
                 
                 quiz1_answer1 TEXT,
@@ -546,45 +548,9 @@ def save_data_to_database(username):
                 final_prioritization_C TEXT
             )
             ''')
-        
-        # Create table if it doesn't exist
-        c.execute('''
-        CREATE TABLE IF NOT EXISTS user_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            timestamp TEXT,
-            completion_status TEXT,
             
-            quiz1_answer1 TEXT,
-            quiz1_answer2 TEXT,
-            quiz1_answer3 TEXT,
-            quiz1_answer4 TEXT,
-            
-            game1_cycle_time REAL,
-            game1_output INTEGER,
-            game1_wip INTEGER,
-            
-            prioritization_A TEXT,
-            prioritization_B TEXT,
-            prioritization_C TEXT,
-            
-            game2_A_cycle_time REAL,
-            game2_A_output INTEGER,
-            game2_A_wip INTEGER,
-            
-            game2_B_cycle_time REAL,
-            game2_B_output INTEGER,
-            game2_B_wip INTEGER,
-            
-            game2_C_cycle_time REAL,
-            game2_C_output INTEGER,
-            game2_C_wip INTEGER,
-            
-            final_prioritization_A TEXT,
-            final_prioritization_B TEXT,
-            final_prioritization_C TEXT
-        )
-        ''')
+            # Add an index on username for faster lookups
+            c.execute('CREATE INDEX IF NOT EXISTS idx_username ON user_results(username)')
         
         # Extract data from session state
         quiz1_answers = st.session_state.get('quiz_answers', ['', '', '', ''])
@@ -682,17 +648,15 @@ def save_data_to_database(username):
         
         # Current timestamp
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          # Determine completion status
+        
+        # Determine completion status
         completion_status = "complete" if st.session_state.page == 'thank_you' else st.session_state.get('game_completion', 'partial')
         
-        # Current timestamp
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Check if this user already has an entry in the database
-        c.execute("SELECT rowid, completion_status FROM user_results WHERE username = ? ORDER BY timestamp DESC LIMIT 1", (username,))
+        # Check if this user already has an entry in the database - get the row ID explicitly
+        c.execute("SELECT rowid, completion_status FROM user_results WHERE username = ? ORDER BY rowid DESC LIMIT 1", (username,))
         existing_entry = c.fetchone()
         
-        # Data values to save
+        # Prepare the data values for database operations
         data_values = (
             timestamp, completion_status,
             quiz1_answers[0], quiz1_answers[1], quiz1_answers[2], quiz1_answers[3],
@@ -706,17 +670,19 @@ def save_data_to_database(username):
         )
         
         if existing_entry:
-            # User exists in database, update the entry instead of creating a new one
-            row_id, existing_status = existing_entry
+            # Get the actual rowid for precise updates
+            row_id = existing_entry[0]  # This is the explicit rowid from the database
+            existing_status = existing_entry[1]
             
             # Don't overwrite a complete entry with a partial one
             if existing_status == "complete" and completion_status != "complete":
                 # Skip saving to avoid overwriting complete data
+                conn.close()
                 return True
                 
-            # Update existing entry in the database
+            # Update existing entry in the database - use both username AND rowid for precision
+            data_values_with_rowid = data_values + (row_id,)  # Add rowid at the end
             
-            # Update the existing entry
             c.execute('''
             UPDATE user_results SET 
                 timestamp = ?, completion_status = ?,
@@ -727,13 +693,10 @@ def save_data_to_database(username):
                 game2_B_cycle_time = ?, game2_B_output = ?, game2_B_wip = ?,
                 game2_C_cycle_time = ?, game2_C_output = ?, game2_C_wip = ?,
                 final_prioritization_A = ?, final_prioritization_B = ?, final_prioritization_C = ?
-            WHERE username = ?
-            ''', data_values)
+            WHERE username = ? AND rowid = ?
+            ''', data_values_with_rowid)
         else:
-            # No existing entry, create a new one
-            # Create new entry in the database
-            
-            # Insert data into database
+            # No existing entry for this username, create a new one with an INSERT
             c.execute('''
             INSERT INTO user_results (
                 username, timestamp, completion_status,
@@ -756,7 +719,12 @@ def save_data_to_database(username):
                 final_prioritization_A, final_prioritization_B, final_prioritization_C
             ))
         
-        # Commit changes and close connection
+        # Add a sleep before commit to ensure transaction completes
+        import time
+        time.sleep(0.1)
+        
+        # Commit changes and close connection - with explicit pragma to ensure data is written to disk
+        c.execute("PRAGMA wal_checkpoint(FULL)")  # Ensure WAL data is written to main database
         conn.commit()
         conn.close()
         
@@ -806,12 +774,72 @@ def get_db_connection():
     # Ensure data directory exists
     os.makedirs('data', exist_ok=True)
     
-    # Get absolute path to database
-    db_path = 'data/game_results.db'
+    # Get absolute path to database - using absolute path helps with persistence
+    db_path = os.path.abspath('data/game_results.db')
     
-    # Connect to database
-    conn = sqlite3.connect(db_path)
+    # Connect to database with extended timeout to handle potential lock issues
+    conn = sqlite3.connect(db_path, timeout=30)
+    
+    # Enable foreign keys for better data integrity
+    conn.execute("PRAGMA foreign_keys = ON")
+    
+    # Use row factory to make column access more intuitive
+    conn.row_factory = sqlite3.Row
+    
     return conn
+
+def perform_database_integrity_check():
+    """
+    Runs at startup to ensure the database is properly maintained.
+    This helps prevent issues where only the first 7 entries are saved.
+    """
+    try:
+        # Check if database exists
+        db_path = os.path.abspath('data/game_results.db')
+        if not os.path.exists(db_path):
+            # No database yet, nothing to check
+            return
+        
+        # Connect to the database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Force a VACUUM to rebuild the database and reclaim space
+        cursor.execute("VACUUM")
+        
+        # Force a checkpoint to ensure WAL data is written to main DB
+        cursor.execute("PRAGMA wal_checkpoint(FULL)")
+        
+        # Check for integrity issues
+        cursor.execute("PRAGMA integrity_check")
+        integrity_result = cursor.fetchone()
+        
+        # Check the schema
+        cursor.execute("PRAGMA table_info(user_results)")
+        schema_info = cursor.fetchall()
+        
+        # Count the number of entries
+        cursor.execute("SELECT COUNT(*) FROM user_results")
+        count_result = cursor.fetchone()[0]
+        
+        # If in admin mode, print diagnostics
+        if 'admin' in st.query_params:
+            st.sidebar.markdown("### Database Status")
+            st.sidebar.info(f"Database integrity: {integrity_result[0]}")
+            st.sidebar.info(f"Total entries: {count_result}")
+        
+        # Commit and close
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        if 'admin' in st.query_params:
+            st.sidebar.error(f"Database integrity check failed: {str(e)}")
+        # Don't interrupt app flow for regular users
+
+
+# Run the integrity check at startup
+perform_database_integrity_check()
 
 # --- Streamlit UI ---
 
@@ -1847,12 +1875,30 @@ elif st.session_state.page == 'thank_you':
         with col1:
             if st.button("View Database Contents", key="view_db_contents"):
                 try:
-                    conn = sqlite3.connect('data/game_results.db')
-                    results_df = pd.read_sql_query("SELECT * FROM user_results", conn)
+                    # Use absolute path to the database
+                    db_path = os.path.abspath('data/game_results.db')
+                    
+                    # Verify database exists
+                    if not os.path.exists(db_path):
+                        st.error(f"Database file not found at: {db_path}")
+                        st.stop()
+                    
+                    # Use the improved get_db_connection
+                    conn = get_db_connection()
+                    
+                    # Force a checkpoint first to ensure all data is written to the main DB
+                    conn.execute("PRAGMA wal_checkpoint(FULL)")
+                    
+                    # Fetch all results, ordered by ID to preserve insertion order
+                    results_df = pd.read_sql_query("SELECT * FROM user_results ORDER BY id ASC", conn)
                     conn.close()
-                      # Reorder columns for better readability
+                    
+                    # Display number of records found
+                    st.info(f"Found {len(results_df)} records in the database.")
+                    
+                    # Reorder columns for better readability
                     column_order = [
-                        'username', 'timestamp', 'completion_status',
+                        'id', 'username', 'timestamp', 'completion_status',
                         'quiz1_answer1', 'quiz1_answer2', 'quiz1_answer3', 'quiz1_answer4',
                         'game1_cycle_time', 'game1_output', 'game1_wip',
                         'prioritization_A', 'prioritization_B', 'prioritization_C',
@@ -1865,7 +1911,7 @@ elif st.session_state.page == 'thank_you':
                     # Make sure we only include columns that exist
                     valid_columns = [col for col in column_order if col in results_df.columns]
                     
-                    # Display the data
+                    # Display the data - including the ID column
                     st.dataframe(results_df[valid_columns])
                     
                     # Store in session state for export button
