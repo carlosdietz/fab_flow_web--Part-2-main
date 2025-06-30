@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 """
-Simple Fab Flow Game Mass Simulation Tool
+Fab Flow Game Mass Simulation Tool - Columnar Output Format
 
-This script runs thousands of simulations of the Fab Flow game to generate
+This script runs thousands of simulations of the Fab Flow game and generates
 statistically significant data for comparing different strategies.
 
-Usage:
-  python simple_simulations.py
-
-Creates a CSV file with the results from 3,000 simulations of each strategy.
+Output format: Each row represents one simulation with columns for:
+SimID, Strategy, Strategy Label, Total Output, End WIP, Avg Cycle Time
 """
 import os
 import random
@@ -114,15 +112,16 @@ def get_tracked_avg_cycle_time(tracked_units):
         return round(sum(cycle_times) / len(cycle_times), 2)
     return 0.00
 
-def simulate_game(strategy):
+def simulate_game(strategy, sim_id):
     """
     Simulate a complete game with the specified strategy.
     
     Args:
         strategy (str): One of 'A', 'B', 'C' for the different game strategies
+        sim_id (int): Simulation ID
         
     Returns:
-        dict: Results including total output, end WIP, and average cycle time
+        dict: Results including simulation ID, strategy, total output, end WIP, and average cycle time
     """
     # Configure settings based on strategy
     settings = {
@@ -130,6 +129,14 @@ def simulate_game(strategy):
         "B": {"dice_range": (2, 5), "start_wip": 4},  # Reduced variability
         "C": {"dice_range": (1, 6), "start_wip": 5},  # Increased WIP
         "original": {"dice_range": (1, 6), "start_wip": 4}  # Original game
+    }
+    
+    # Strategy labels
+    strategy_labels = {
+        'original': 'Base Game',
+        'A': 'Increased Capacity (1-7)',
+        'B': 'Reduced Variability (2-5)', 
+        'C': 'Increased WIP (5)'
     }
     
     config = settings.get(strategy, settings["original"])
@@ -170,20 +177,23 @@ def simulate_game(strategy):
     total_output = sum(round_outputs)
     tracked_avg_cycle_time = get_tracked_avg_cycle_time(tracked_units)
     
-    # Return the results
+    # Return the results as a single row with columns as requested
     return {
+        "SimID": sim_id,
         "Strategy": strategy,
-        "Total Output": total_output, 
+        "Strategy Label": strategy_labels[strategy], 
+        "Total Output": total_output,
         "End WIP": total_end_wip,
         "Avg Cycle Time": tracked_avg_cycle_time
     }
 
-def run_mass_simulations(num_simulations=3000, output_file='simulation_results_restructured.csv'):
-    """Run a large number of simulations for each strategy and save to CSV with metrics in separate rows"""
+def run_columnar_simulations(num_simulations=3000, output_file='simulation_results_columnar.csv'):
+    """Run a large number of simulations for each strategy and save to CSV in columnar format"""
     print(f"Starting {num_simulations} simulations per strategy (total: {num_simulations * 4})...")
     
     strategies = ['original', 'A', 'B', 'C']
     all_results = []
+    sim_id = 0
     
     # Run simulations for each strategy
     for strategy in strategies:
@@ -200,68 +210,23 @@ def run_mass_simulations(num_simulations=3000, output_file='simulation_results_r
                 sys.stdout.write(f"\rProgress: {progress:.1f}% | Elapsed: {elapsed:.1f}s | Remaining: {remaining:.1f}s | Simulations: {i}/{num_simulations}")
                 sys.stdout.flush()
                 
-            # Run a single simulation
-            result = simulate_game(strategy)
+            # Run a single simulation with unique sim_id
+            result = simulate_game(strategy, sim_id)
             all_results.append(result)
+            sim_id += 1
         
         # Complete the progress line
         print(f"\rProgress: 100% | Complete: {time.time() - start_time:.1f}s | Simulations: {num_simulations}/{num_simulations}")
     
-    # Convert results to DataFrame
+    # Convert results to DataFrame and save to CSV
     results_df = pd.DataFrame(all_results)
     
-    # Add strategy labels
-    strategy_labels = {
-        'original': 'Base Game',
-        'A': 'Increased Capacity (1-7)',
-        'B': 'Reduced Variability (2-5)', 
-        'C': 'Increased WIP (5)'
-    }
-    
-    results_df['Strategy Label'] = results_df['Strategy'].map(strategy_labels)
-    
-    # Restructure the data - create new dataframe with one metric per row
-    restructured_data = []
-    
-    for index, row in results_df.iterrows():
-        sim_id = index  # Use original index as simulation identifier
-        strategy = row['Strategy']
-        strategy_label = row['Strategy Label']
-        
-        # Add total output row
-        restructured_data.append({
-            'SimID': sim_id,
-            'Strategy': strategy,
-            'Strategy Label': strategy_label,
-            'Metric': 'Total Output',
-            'Value': row['Total Output']
-        })
-        
-        # Add end WIP row
-        restructured_data.append({
-            'SimID': sim_id,
-            'Strategy': strategy,
-            'Strategy Label': strategy_label,
-            'Metric': 'End WIP',
-            'Value': row['End WIP']
-        })
-        
-        # Add avg cycle time row
-        restructured_data.append({
-            'SimID': sim_id,
-            'Strategy': strategy,
-            'Strategy Label': strategy_label,
-            'Metric': 'Avg Cycle Time',
-            'Value': row['Avg Cycle Time']
-        })
-    
-    # Create and save the restructured dataframe
-    restructured_df = pd.DataFrame(restructured_data)
-    restructured_df.to_csv(output_file, index=False)
+    # Save to CSV
+    results_df.to_csv(output_file, index=False)
     
     print(f"\nSimulations completed. Results stored in {output_file}")
     
-    # Print summary statistics
+    # Print summary statistics grouped by strategy
     print("\nSummary Statistics:")
     summary = results_df.groupby('Strategy').agg({
         'Total Output': ['mean', 'std', 'min', 'max'],
@@ -274,4 +239,4 @@ def run_mass_simulations(num_simulations=3000, output_file='simulation_results_r
     return output_file
 
 if __name__ == "__main__":
-    run_mass_simulations()
+    run_columnar_simulations()
